@@ -1,0 +1,69 @@
+// Jenkinsfile for the Backend service
+
+pipeline {
+    agent any // Run on any available Jenkins agent
+
+    environment {
+        DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
+        DOCKERHUB_USERNAME = 'virtualviking98' // Your Docker Hub username
+        DOCKER_IMAGE_NAME = 'medihealth-backend'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                echo 'Checking out the prince branch...'
+                checkout scm
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                echo 'Installing dependencies and running tests...'
+                sh 'npm install'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Use the Git commit hash as the image tag for unique versioning
+                    def imageTag = env.GIT_COMMIT.take(8)
+                    env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
+                    
+                    echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
+                    // Use the -f flag to specify the dev Dockerfile if needed
+                    sh "docker build -f Dockerfile.dev -t ${env.FULL_IMAGE_NAME} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Logging in and pushing image to Docker Hub..."
+                withDockerRegistry([credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deploying container on the Jenkins host..."
+                // These commands run directly on the Jenkins server
+                sh """
+                    docker stop ${DOCKER_IMAGE_NAME} || true
+                    docker rm ${DOCKER_IMAGE_NAME} || true
+                    docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 3001:3000 ${env.FULL_IMAGE_NAME}
+                """
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up the workspace after every build
+            cleanWs()
+        }
+    }
+}
