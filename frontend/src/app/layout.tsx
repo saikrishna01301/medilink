@@ -1,6 +1,23 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from 'next/font/google';
+import localFont from 'next/font/local'; // 1. Import localFont
 import "./globals.css";
+
+
+
+const adoha = localFont({
+  src: './fonts/Adoha.ttf',
+  display: 'swap',
+  variable: '--font-adoha', // Optional: for use with Tailwind CSS
+});
+const urbane = localFont({
+  src: './fonts/Urbane-Light.ttf',
+  display: 'swap',
+  variable: '--font-adoha', // Optional: for use with Tailwind CSS
+});
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 // import LandingPage from '@/components/LandingPage'
 import { headers } from "next/headers";
@@ -27,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className = {`${geistSans.variable} ${geistMono.variable} antialiased bg-custom-gradient`}
+        className = {`${geistSans.variable} ${geistMono.variable} ${adoha.variable} ${inter.variable} antialiased bg-custom-gradient`}
       >
         {children}
       </body>
