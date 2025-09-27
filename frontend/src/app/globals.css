@@ -38,3 +38,19 @@ header {
   height: 78px;
   align-self: center;
 }
+
+
+@font-face {
+  font-family: 'Adoha';
+  src: url('/fonts/Adoha-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Create a helper class to easily apply the font */
+.font-adoha {
+  font-family: 'Adoha', sans-serif;
+}
+.font-urbane {
+  font-family: 'Urbane', sans-serif;
+}
