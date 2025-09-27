@@ -1,38 +1,36 @@
-// Jenkinsfile for the Backend service
+// backend/Jenkinsfile
 
 pipeline {
-    agent any // Run on any available Jenkins agent
+    // Default agent for stages that need the Docker CLI
+    agent any 
 
     environment {
         DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
-        DOCKERHUB_USERNAME = 'virtualviking98' // Your Docker Hub username
-        DOCKER_IMAGE_NAME = 'medihealth-backend'
+        DOCKERHUB_USERNAME = 'virtualviking98'
+        DOCKER_IMAGE_NAME = 'medihealth-backend' // Correct image name for backend
     }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                echo 'Checking out the prince branch...'
-                checkout scm
-            }
-        }
-
         stage('Build & Test') {
+            // ✅ Use a specific Docker agent JUST for this stage
+            agent {
+                docker { image 'node:20-alpine' }
+            }
             steps {
-                echo 'Installing dependencies and running tests...'
+                echo 'Installing dependencies and running tests inside a Node.js container...'
                 sh 'npm install'
+                // sh 'npm test' 
             }
         }
 
         stage('Build Docker Image') {
+            // This stage runs on the default agent, which has the docker command
             steps {
                 script {
-                    // Use the Git commit hash as the image tag for unique versioning
                     def imageTag = env.GIT_COMMIT.take(8)
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
                     
                     echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
-                    // Use the -f flag to specify the dev Dockerfile if needed
                     sh "docker build -f Dockerfile.dev -t ${env.FULL_IMAGE_NAME} ."
                 }
             }
@@ -50,7 +48,6 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo "Deploying container on the Jenkins host..."
-                // These commands run directly on the Jenkins server
                 sh """
                     docker stop ${DOCKER_IMAGE_NAME} || true
                     docker rm ${DOCKER_IMAGE_NAME} || true
@@ -62,7 +59,6 @@ pipeline {
     
     post {
         always {
-            // Clean up the workspace after every build
             cleanWs()
         }
     }
