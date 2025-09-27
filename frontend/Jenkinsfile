@@ -1,47 +1,27 @@
-// frontend/Jenkinsfile
-
 pipeline {
-    // This is the default agent for all stages unless specified otherwise.
-    // It has Docker installed.
-    agent any 
+    agent any
 
     environment {
         DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
         DOCKERHUB_USERNAME = 'virtualviking98'
-        DOCKER_IMAGE_NAME = 'medihealth-frontend'
+        DOCKER_IMAGE_NAME = 'medihealth-frontend' 
     }
 
     stages {
-        // You can remove the extra 'Checkout Code' stage, as Jenkins does it automatically.
         
-        stage('Build & Test') {
-            // Use a specific Docker agent JUST for this stage
-            agent {
-                docker { image 'node:20-alpine' }
-            }
-            steps {
-                echo 'Installing dependencies and running tests inside a Node.js container...'
-                sh 'npm install'
-                // sh 'npm test' // Uncomment this once you have tests
-            }
-        }
-
+        stage('Checkout Code') { steps { echo 'Checking out...'; checkout scm } }
+        stage('Build & Test') { steps { echo 'Testing...'; sh 'npm install'; /* sh 'npm test' */ } }
         stage('Build Docker Image') {
-            // This stage runs on the default agent (agent any), which has the docker command
             steps {
                 script {
                     def imageTag = env.GIT_COMMIT.take(8)
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
-                    
-                    echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
                     sh "docker build -f Dockerfile.dev -t ${env.FULL_IMAGE_NAME} ."
                 }
             }
         }
-
         stage('Push Docker Image') {
             steps {
-                echo "Logging in and pushing image to Docker Hub..."
                 withDockerRegistry([credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
                     sh "docker push ${env.FULL_IMAGE_NAME}"
                 }
@@ -54,15 +34,14 @@ pipeline {
                 sh """
                     docker stop ${DOCKER_IMAGE_NAME} || true
                     docker rm ${DOCKER_IMAGE_NAME} || true
+                    
+                    # This command is different for the frontend
+                    # We map host port 80 to the container's port 3000
                     docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 80:3000 ${env.FULL_IMAGE_NAME}
                 """
             }
         }
     }
     
-    post {
-        always {
-            cleanWs()
-        }
-    }
+    post { always { cleanWs() } }
 }
