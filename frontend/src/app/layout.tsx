@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// import LandingPage from '@/components/LandingPage'
+import { headers } from "next/headers";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -25,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className = {`${geistSans.variable} ${geistMono.variable} antialiased bg-custom-gradient`}
       >
         {children}
       </body>
