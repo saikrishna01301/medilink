@@ -23,6 +23,7 @@ pipeline {
                 // sh 'npm test' // You can uncomment this later
             }
         }
+        }
 
         stage('Build Docker Image') {
             // This stage runs on the default agent, which has the docker command
