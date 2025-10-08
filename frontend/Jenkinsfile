@@ -12,8 +12,7 @@ pipeline {
 
     stages {
         stage('Build & Test') {
-            // ✅ THIS IS THE CRITICAL FIX ✅
-            // Use a specific Docker agent JUST for this stage.
+        
             agent {
                 docker { image 'node:20-alpine' }
             }
