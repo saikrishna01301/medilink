@@ -17,8 +17,9 @@ pipeline {
                 docker { image 'node:20-alpine' }
             }
             steps {
-                echo 'Installing dependencies inside a Node.js container...'
-                sh 'npm install'
+                dir('frontend') {
+            echo 'Installing dependencies inside the frontend directory...'
+            sh 'npm install'
                 // sh 'npm test' // You can uncomment this later
             }
         }
