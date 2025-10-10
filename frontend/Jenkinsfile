@@ -19,6 +19,7 @@ pipeline {
                 dir('frontend') {
                     echo 'Installing dependencies inside the frontend directory...'
                     sh 'npm cache clean --force' 
+                    sh 'rm -rf node_modules package-lock.json'
                     sh 'npm install'
                 }
             }
