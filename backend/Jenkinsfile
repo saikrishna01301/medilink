@@ -29,7 +29,26 @@ pipeline {
             }
         }
         // ... Push and Deploy stages remain the same ...
-        stage('Push Docker Image') { /* ... */ }
-        stage('Deploy') { /* ... */ }
+        stage('Push Docker Image') {
+            steps {
+                echo "Logging in and pushing image to Docker Hub..."
+                withDockerRegistry([credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo "Logging in and pushing image to Docker Hub..."
+                withDockerRegistry([credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                }
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs()
+        }
     }
 }
