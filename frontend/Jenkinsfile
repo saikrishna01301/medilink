@@ -47,8 +47,9 @@ pipeline {
         // }
         stage('Deploy') {
             steps {
-                echo "Deploying container on the Jenkins host..."
+                echo "Deploying locally built container on the Jenkins host..."
                 sh """
+                    // No need to pull the image, it was built in the previous stage
                     docker stop ${DOCKER_IMAGE_NAME} || true
                     docker rm ${DOCKER_IMAGE_NAME} || true
                     docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 80:3000 ${env.FULL_IMAGE_NAME}
