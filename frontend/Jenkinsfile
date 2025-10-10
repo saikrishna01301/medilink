@@ -11,7 +11,7 @@ pipeline {
         stage('Build & Test') {
             agent {
                  docker {
-                    image 'node:20-alpine' 
+                    image 'node:18-alpine' 
                     args '-v /var/lib/jenkins/.npm:/.npm'
                 } 
             }
@@ -29,7 +29,7 @@ pipeline {
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
                     echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
                     // Important: The build context is now the frontend subfolder
-                    sh "docker build -f frontend/Dockerfile.dev -t ${env.FULL_IMAGE_NAME} frontend/"
+                    sh "docker build -f frontend/Dockerfile -t ${env.FULL_IMAGE_NAME} frontend/"
                 }
             }
         }
