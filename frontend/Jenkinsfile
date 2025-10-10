@@ -20,6 +20,7 @@ pipeline {
                     echo 'Installing dependencies inside the frontend directory...'
                     sh 'npm cache clean --force' 
                     sh 'rm -rf node_modules package-lock.json'
+                    sh 'sudo chown -R 125:127 "/.npm"'
                     sh 'npm install'
                 }
             }
