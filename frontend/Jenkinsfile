@@ -9,7 +9,12 @@ pipeline {
     }
     stages {
         stage('Build & Test') {
-            agent { docker { image 'node:20-alpine' } }
+            agent {
+                 docker {
+                    image 'node:20-alpine' 
+                    args '-v /var/lib/jenkins/.npm:/.npm'
+                } 
+            }
             steps {
                 dir('frontend') {
                     echo 'Installing dependencies inside the frontend directory...'
