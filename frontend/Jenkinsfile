@@ -36,15 +36,15 @@ pipeline {
                 }
             }
         }
-        // ... Push and Deploy stages remain the same ...
-        // stage('Push Docker Image') {
-        //     steps {
-        //         echo "Logging in and pushing image to Docker Hub..."
-        //         withDockerRegistry([url: 'https://index.docker.io/v1/', credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
-        //             sh "docker push ${env.FULL_IMAGE_NAME}"
-        //         }
-        //     }
-        // }
+        ... Push and Deploy stages remain the same ...
+        stage('Push Docker Image') {
+            steps {
+                echo "Logging in and pushing image to Docker Hub..."
+                withDockerRegistry([url: 'https://index.docker.io/v1/', credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                }
+            }
+        }
         stage('Deploy') {
             steps {
                 echo "Deploying locally built container..."
