@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import DashboardImage from "../../../public/image.png"; // ✅ put inside /public
+import DashboardImage from "../../../public/image.png"; 
 
 const PlatformIntro: React.FC = () => {
   return (

@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abhineet's Lottery Tool</title>
+    <link rel="icon" href="https://i.imgur.com/8pP6mRj.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); animation-name: fadeIn; animation-duration: 0.4s; }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px; border-radius: 0.5rem; animation-name: slideIn; animation-duration: 0.4s; }
+        @keyframes slideIn { from {bottom: -300px; opacity: 0} to {bottom: 0; opacity: 1} }
+        @keyframes fadeIn { from {opacity: 0} to {opacity: 1} }
+        .nil-input { background-color: #fecaca; color: #b91c1c; font-weight: bold; }
+        .report-item { display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; border-radius: 0.375rem; margin-bottom: 0.5rem; }
+        .report-item button { all: unset; cursor: pointer; padding: 8px; flex-grow: 1; text-align: left; }
+        .report-item button:hover { background-color: #f3f4f6; }
+        .report-item .remove-report-btn { flex-grow: 0; padding: 0 12px; font-weight: bold; color: #ef4444; }
+        .report-item .remove-report-btn:hover { color: #b91c1c; }
+        .editing-indicator { background-color: #dbeafe; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Main Application Container -->
+    <div id="app" class="container mx-auto p-4 md:p-6">
+        <header class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-4">
+                 <img src="https://www.njlottery.com/content/dam/portal/images/NewJerseyLottery_Logo_Full%20Color.png" alt="NJ Lottery Logo" class="h-16">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-700">Hudson Mart</h1>
+                    <p class="text-slate-500">104 Washington Street, Hoboken NJ</p>
+                </div>
+            </div>
+            <div>
+                <button id="settingsBtn" class="bg-slate-500 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-lg shadow transition-transform transform hover:scale-105 mr-2">Settings</button>
+            </div>
+        </header>
+        
+        <main>
+             <!-- Daily Info -->
+            <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="shiftDate" class="block text-sm font-medium text-gray-700">Date</label>
+                        <input type="date" id="shiftDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 data-entry">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Entry & Summary Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+                <!-- Shift A -->
+                <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-md">
+                     <h2 class="text-xl font-semibold mb-4 border-b pb-2">Shift A (Morning)</h2>
+                     <div class="grid grid-cols-1 gap-y-4">
+                        <div>
+                             <label for="personNameA" class="block text-sm font-medium text-gray-700">Person's Name</label>
+                             <input type="text" id="personNameA" list="employeeList" placeholder="Select or type name..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 data-entry">
+                             <datalist id="employeeList"></datalist>
+                        </div>
+                        <h3 class="text-lg font-semibold border-t pt-4">Machine Report</h3>
+                        <div><label for="onlineSalesA">Online Sales ($)</label><input type="number" id="onlineSalesA" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                        <div><label for="onlineCashesA">Online Cashes (-$)</label><input type="number" id="onlineCashesA" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                        <div><label for="instantCashesA">Instant Cashes (-$)</label><input type="number" id="instantCashesA" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                         <h3 class="text-lg font-semibold border-t pt-4">Reckoning Summary</h3>
+                         <div><label>Total Scratch-Off Sales</label><p id="totalScratchSalesA" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label>Expected Scratch-Off Cash</label><p id="expectedScratchCashA" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label>Total Expected Cash</label><p id="totalExpectedCashA" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label for="actualCashA">Actual Cash Collected ($)</label><input type="number" id="actualCashA" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                         <div><label>Difference</label><p id="differenceA" class="text-2xl font-bold text-center p-2 rounded-md">---</p></div>
+                     </div>
+                </div>
+
+                <!-- Shift B -->
+                <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-md">
+                     <h2 class="text-xl font-semibold mb-4 border-b pb-2">Shift B (Evening)</h2>
+                      <div class="grid grid-cols-1 gap-y-4">
+                        <div>
+                             <label for="personNameB" class="block text-sm font-medium text-gray-700">Person's Name</label>
+                             <input type="text" id="personNameB" list="employeeList" placeholder="Select or type name..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 data-entry">
+                        </div>
+                        <h3 class="text-lg font-semibold border-t pt-4">Machine Report</h3>
+                        <div><label for="onlineSalesB">Online Sales ($)</label><input type="number" id="onlineSalesB" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                        <div><label for="onlineCashesB">Online Cashes (-$)</label><input type="number" id="onlineCashesB" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                        <div><label for="instantCashesB">Instant Cashes (-$)</label><input type="number" id="instantCashesB" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                         <h3 class="text-lg font-semibold border-t pt-4">Reckoning Summary</h3>
+                         <div><label>Total Scratch-Off Sales</label><p id="totalScratchSalesB" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label>Expected Scratch-Off Cash</label><p id="expectedScratchCashB" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label>Total Expected Cash</label><p id="totalExpectedCashB" class="font-bold text-lg bg-gray-100 p-2 rounded-md">$0.00</p></div>
+                         <div><label for="actualCashB">Actual Cash Collected ($)</label><input type="number" id="actualCashB" class="mt-1 block w-full p-2 border rounded-md data-entry" placeholder="0.00"></div>
+                         <div><label>Difference</label><p id="differenceB" class="text-2xl font-bold text-center p-2 rounded-md">---</p></div>
+                     </div>
+                </div>
+
+                <!-- Pending Reports -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">Reports & Sessions</h2>
+                    <p class="text-xs text-gray-500 mb-2">Click a report to load it for editing.</p>
+                    <div id="pendingReportsList" class="space-y-2 mb-4 h-48 overflow-y-auto">
+                        <p class="text-gray-500 text-sm">No reports saved.</p>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button id="generateConsolidatedPdfBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow disabled:bg-gray-400" disabled>Generate PDF</button>
+                        <button id="clearPendingBtn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow disabled:bg-gray-400" disabled>Clear List</button>
+                        <hr class="my-2">
+                        <button id="exportSessionBtn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg shadow">Export Data</button>
+                        <label for="importSessionInput" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow text-center cursor-pointer">Import Data</label>
+                        <input type="file" id="importSessionInput" class="hidden" accept=".json">
+                    </div>
+                </div>
+            </div>
+
+             <!-- Action Buttons -->
+            <div class="flex justify-center items-center gap-4 my-6 flex-wrap">
+                <button id="calculateDayBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 text-lg rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    Calculate Day
+                </button>
+                <button id="saveDayBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 text-lg rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    Save Day & Start Next
+                </button>
+            </div>
+
+
+            <!-- Scratch-Off Tickets Table -->
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-md">
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Scratch-Off Tickets</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th rowspan="2" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">#</th>
+                                <th rowspan="2" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">Ticket Name</th>
+                                <th rowspan="2" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">Price</th>
+                                <th rowspan="2" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom">Prev. # (P)</th>
+                                <th colspan="3" class="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-l">Shift A</th>
+                                <th colspan="3" class="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-l">Shift B</th>
+                                <th rowspan="2" class="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-bottom" style="min-width: 180px;">Actions</th>
+                            </tr>
+                            <tr>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-l">End # (A)</th>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sold (C)</th>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (T)</th>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-l">End # (B)</th>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sold (C)</th>
+                                <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (T)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ticketsTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+        <footer class="text-center text-sm text-gray-500 mt-8">
+            <p>Developed by <a href="https://github.com/Virtual-Viking" target="_blank" class="text-blue-600 hover:underline">Virtual-Viking</a></p>
+        </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center border-b pb-3 mb-4"><h2 class="text-2xl font-bold">Settings</h2><button id="closeModalBtn" class="text-3xl font-bold">&times;</button></div>
+            
+             <!-- Employee Management section -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-2">Employee Management</h3>
+                <div class="flex gap-2 mb-2">
+                    <input type="text" id="newEmployeeInput" placeholder="New employee name..." class="flex-grow p-2 border rounded-md">
+                    <button id="addEmployeeBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md">Add</button>
+                </div>
+                <div id="employeeListContainer" class="space-y-1 max-h-40 overflow-y-auto border p-2 rounded-md">
+                    <!-- Employee items will be injected here by JS -->
+                </div>
+            </div>
+
+            <!-- Ticket Configuration Section -->
+            <div>
+                <h3 class="text-lg font-semibold mb-2">Ticket Configuration</h3>
+                <p class="text-sm text-gray-600 mb-4"><strong>Book Size:</strong> Total tickets in a book (e.g., 200).<br><strong>Initial #:</strong> Current number for first-time setup.</p>
+                <div class="overflow-y-auto" style="max-height: 45vh;"><table class="min-w-full"><thead class="bg-gray-100 sticky top-0"><tr><th class="p-2 text-left">#</th><th class="p-2 text-left">Name</th><th class="p-2 text-left">Price ($)</th><th class="p-2 text-left">Book Size</th><th class="p-2 text-left">Initial #</th></tr></thead><tbody id="settingsTableBody"></tbody></table></div>
+            </div>
+            
+            <div class="mt-6 flex justify-between"><button id="clearDataBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Clear All Data</button><button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Save Configuration</button></div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const { jsPDF } = window.jspdf;
+
+    // --- DOM Element Cache ---
+    const dom = {
+        settingsModal: document.getElementById('settingsModal'), settingsBtn: document.getElementById('settingsBtn'), closeModalBtn: document.getElementById('closeModalBtn'), saveSettingsBtn: document.getElementById('saveSettingsBtn'), clearDataBtn: document.getElementById('clearDataBtn'), ticketsTableBody: document.getElementById('ticketsTableBody'), settingsTableBody: document.getElementById('settingsTableBody'), calculateDayBtn: document.getElementById('calculateDayBtn'), saveDayBtn: document.getElementById('saveDayBtn'), shiftDateInput: document.getElementById('shiftDate'), pendingReportsList: document.getElementById('pendingReportsList'), generateConsolidatedPdfBtn: document.getElementById('generateConsolidatedPdfBtn'), clearPendingBtn: document.getElementById('clearPendingBtn'), employeeDataList: document.getElementById('employeeList'), newEmployeeInput: document.getElementById('newEmployeeInput'), addEmployeeBtn: document.getElementById('addEmployeeBtn'), employeeListContainer: document.getElementById('employeeListContainer'), exportSessionBtn: document.getElementById('exportSessionBtn'), importSessionInput: document.getElementById('importSessionInput'),
+        // Shift A
+        personNameA: document.getElementById('personNameA'), onlineSalesA: document.getElementById('onlineSalesA'), onlineCashesA: document.getElementById('onlineCashesA'), instantCashesA: document.getElementById('instantCashesA'), totalScratchSalesA: document.getElementById('totalScratchSalesA'), expectedScratchCashA: document.getElementById('expectedScratchCashA'), totalExpectedCashA: document.getElementById('totalExpectedCashA'), actualCashA: document.getElementById('actualCashA'), differenceA: document.getElementById('differenceA'),
+        // Shift B
+        personNameB: document.getElementById('personNameB'), onlineSalesB: document.getElementById('onlineSalesB'), onlineCashesB: document.getElementById('onlineCashesB'), instantCashesB: document.getElementById('instantCashesB'), totalScratchSalesB: document.getElementById('totalScratchSalesB'), expectedScratchCashB: document.getElementById('expectedScratchCashB'), totalExpectedCashB: document.getElementById('totalExpectedCashB'), actualCashB: document.getElementById('actualCashB'), differenceB: document.getElementById('differenceB')
+    };
+    
+    dom.shiftDateInput.value = new Date().toISOString().split('T')[0];
+    
+    let ticketConfig = [], ticketState = [], dailyReports = [], employees = [];
+    let editingReportIndex = null; // null for new, or index for editing
+    // Base64 version of the NJ Lottery Logo to avoid CORS issues in PDF generation
+    const njLogoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQcAAABACAYAAADeivzXAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAEcASURBVHhe7Z0JnBVFFsbvX/fGje4bqG4UFEVABN31jRsiokZExQoG3VXcuKixYFCMgoKKG3d1V3eNGyAiuqsbVd0Nwn/VzU27p3u6+57+/vydo2l6prvqVFdX/VM13M+iKIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIgCIIg-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-y-"
+
+    // --- Core Logic ---
+    function loadData() {
+        const storedConfig = localStorage.getItem('lotteryTicketConfig');
+        const storedState = localStorage.getItem('lotteryTicketState');
+        const storedReports = localStorage.getItem('lotteryDailyReports');
+        const storedEmployees = localStorage.getItem('lotteryEmployees');
+
+        if (storedConfig) ticketConfig = JSON.parse(storedConfig);
+        else ticketConfig = [ { id: 0, name: "Pocket Change", price: 1, bookSize: 200 }, { id: 1, name: "Easy As 123", price: 2, bookSize: 150 }, { id: 2, name: "Big Money Spectacular", price: 2, bookSize: 150 }, { id: 3, name: "Stacks of Green", price: 2, bookSize: 150 }, { id: 4, name: "Electric 8's", price: 2, bookSize: 100 }, { id: 5, name: "Loteria", price: 3, bookSize: 100 }, { id: 6, name: "Win for Life", price: 3, bookSize: 100 }, { id: 7, name: "Crossword", price: 3, bookSize: 60 }, { id: 8, name: "Wild Poker", price: 5, bookSize: 60 }, { id: 9, name: "Bingo Times 10", price: 5, bookSize: 60 }, { id: 10, name: "Loteria Grande", price: 5, bookSize: 60 }, { id: 11, name: "Super Crossword", price: 5, bookSize: 60 }, { id: 12, name: "Money Rush", price: 5, bookSize: 60 }, { id: 13, name: "Cash 4-Ever", price: 5, bookSize: 60 }, { id: 14, name: "UNO", price: 5, bookSize: 60 }, { id: 15, name: "Wild$IDE", price: 5, bookSize: 60 }, { id: 16, name: "Neon 9s", price: 10, bookSize: 30 }, { id: 17, name: "Shore Things", price: 10, bookSize: 30 }, { id: 18, name: "50,000 Jumbo Bucks", price: 10, bookSize: 30 }, { id: 19, name: "500.00 Lion's Share", price: 10, bookSize: 30 }, { id: 20, name: "Mega Hots 7's", price: 20, bookSize: 20 }, { id: 21, name: "Crossword Bonanza", price: 20, bookSize: 20 }, { id: 22, name: "Crossword Extreme", price: 30, bookSize: 20 }, { id: 23, name: "Millionaire Maker", price: 25, bookSize: 20 }, { id: 24, name: "Quarter Million Cash", price: 20, bookSize: 20 }, { id: 25, name: "100X Cash Blitz", price: 20, bookSize: 20 }, { id: 26, name: "5,000,000 Fortune", price: 30, bookSize: 20 }, { id: 27, name: "Colossal Crossword", price: 30, bookSize: 20 }];
+        
+        if (storedState) ticketState = JSON.parse(storedState);
+        else ticketState = ticketConfig.map(t => ({ id: t.id, lastNumber: t.bookSize - 1 }));
+
+        if(storedReports) dailyReports = JSON.parse(storedReports);
+        if(storedEmployees) employees = JSON.parse(storedEmployees);
+        
+        if(ticketState.length !== ticketConfig.length){ ticketState = ticketConfig.map(t => ({ id: t.id, lastNumber: t.bookSize -1 })); saveState(); }
+
+        renderApp();
+        
+        if (!storedConfig) dom.settingsModal.style.display = 'block';
+    }
+    
+    function renderApp() {
+        renderSettingsTable();
+        renderMainTable();
+        updatePendingReportsUI();
+        updateEmployeeUI();
+    }
+
+    function saveState() { localStorage.setItem('lotteryTicketState', JSON.stringify(ticketState)); }
+    function saveReports() { localStorage.setItem('lotteryDailyReports', JSON.stringify(dailyReports)); }
+    function saveEmployees() { localStorage.setItem('lotteryEmployees', JSON.stringify(employees)); }
+    function clearAllData() { if(confirm("Are you sure you want to delete all settings, saved state, AND pending reports?")) { localStorage.clear(); window.location.reload(); } }
+
+    // --- Rendering ---
+    function renderSettingsTable() {
+        dom.settingsTableBody.innerHTML = '';
+        ticketConfig.forEach((t, i) => dom.settingsTableBody.insertAdjacentHTML('beforeend', `<tr class="border-b"><td class="p-2 font-semibold">${i + 1}</td><td class="p-2"><input type="text" data-id="${t.id}" data-prop="name" value="${t.name}" class="w-full p-1 border rounded"></td><td class="p-2"><input type="number" data-id="${t.id}" data-prop="price" value="${t.price}" class="w-20 p-1 border rounded"></td><td class="p-2"><input type="number" data-id="${t.id}" data-prop="bookSize" value="${t.bookSize}" class="w-24 p-1 border rounded"></td><td class="p-2"><input type="number" data-id="${t.id}" data-prop="initial" value="${(ticketState.find(s=>s.id===t.id) || {lastNumber: t.bookSize-1}).lastNumber}" class="w-24 p-1 border rounded"></td></tr>`));
+    }
+
+    function renderMainTable() {
+        dom.ticketsTableBody.innerHTML = '';
+        ticketConfig.forEach((t, i) => {
+            const state = ticketState.find(s => s.id === t.id);
+            if (!state) return;
+            const isPrevNil = state.lastNumber === -1;
+            const prevInputHTML = `<input type="number" class="w-24 p-1 border rounded prev-number-input data-entry ${isPrevNil ? 'nil-input' : ''}" value="${isPrevNil ? '' : state.lastNumber}" ${isPrevNil ? 'placeholder="SOLD"' : ''}>`;
+            dom.ticketsTableBody.insertAdjacentHTML('beforeend', `<tr id="row-${t.id}" class="ticket-row"><td class="px-2 py-3">${i + 1}</td><td class="px-2 py-3 font-semibold">${t.name}</td><td class="px-2 py-3">$${t.price.toFixed(2)}</td><td class="px-2 py-3">${prevInputHTML}</td><td class="px-2 py-3 border-l"><input type="number" class="w-24 p-1 border rounded shift-a-input data-entry" placeholder="${isPrevNil ? 'SOLD' : state.lastNumber}"></td><td class="px-2 py-3 sold-a-count">0</td><td class="px-2 py-3 total-a-amount font-bold">$0.00</td><td class="px-2 py-3 border-l"><input type="number" class="w-24 p-1 border rounded shift-b-input data-entry" placeholder=""></td><td class="px-2 py-3 sold-b-count">0</td><td class="px-2 py-3 total-b-amount font-bold">$0.00</td><td class="px-2 py-3 space-x-1 whitespace-nowrap"><button class="nil-p-btn bg-yellow-500 text-white px-2 py-1 text-xs rounded hover:bg-yellow-600">NIL P</button><button class="nil-btn bg-red-500 text-white px-2 py-1 text-xs rounded hover:bg-red-600" data-shift="A">NIL A</button><button class="nil-btn bg-red-500 text-white px-2 py-1 text-xs rounded hover:bg-red-600" data-shift="B">NIL B</button><button class="reload-btn bg-gray-500 text-white px-2 py-1 text-xs rounded hover:bg-gray-600">Reload</button></td></tr>`);
+        });
+    }
+    
+    function updateEmployeeUI() {
+        dom.employeeDataList.innerHTML = employees.map(e => `<option value="${e}"></option>`).join('');
+        dom.employeeListContainer.innerHTML = employees.map((name, index) => `
+            <div class="flex justify-between items-center bg-gray-100 p-1 rounded">
+                <span>${name}</span>
+                <button data-index="${index}" class="remove-employee-btn text-red-500 hover:text-red-700 font-bold px-2"> &times; </button>
+            </div>
+        `).join('') || '<p class="text-sm text-gray-500">No employees added yet.</p>';
+    }
+
+    function updatePendingReportsUI() {
+        dom.pendingReportsList.innerHTML = dailyReports.length === 0 ? '<p class="text-gray-500 text-sm">No reports saved.</p>' : dailyReports.map((r, i) => `<div class="report-item ${editingReportIndex === i ? 'editing-indicator' : ''}"><button data-index="${i}" class="load-report-btn"><span>${new Date(r.date).toLocaleDateString('en-US',{timeZone:'UTC'})}</span></button><button data-index="${i}" class="remove-report-btn">X</button></div>`).join('');
+        dom.generateConsolidatedPdfBtn.disabled = dom.clearPendingBtn.disabled = dailyReports.length === 0;
+        dom.saveDayBtn.textContent = editingReportIndex === null ? 'Save Day & Start Next' : 'Update Day & Start Next';
+        if(editingReportIndex !== null) dom.saveDayBtn.classList.replace('bg-teal-600','bg-orange-500'); else dom.saveDayBtn.classList.replace('bg-orange-500', 'bg-teal-600');
+
+    }
+
+    // --- Event Handlers ---
+    dom.settingsBtn.onclick = () => { updateEmployeeUI(); renderSettingsTable(); dom.settingsModal.style.display = 'block'; };
+    dom.closeModalBtn.onclick = () => dom.settingsModal.style.display = 'none';
+    window.onclick = (e) => { if (e.target == dom.settingsModal) dom.settingsModal.style.display = 'none'; };
+    dom.clearDataBtn.onclick = clearAllData;
+
+    dom.addEmployeeBtn.onclick = () => {
+        const newName = dom.newEmployeeInput.value.trim();
+        if (newName && !employees.includes(newName)) {
+            employees.push(newName);
+            saveEmployees();
+            updateEmployeeUI();
+            dom.newEmployeeInput.value = '';
+        } else if (employees.includes(newName)) {
+            alert(`Employee "${newName}" already exists.`);
+        }
+    };
+
+    dom.employeeListContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-employee-btn') || e.target.parentElement.classList.contains('remove-employee-btn')) {
+            const button = e.target.closest('.remove-employee-btn');
+            const index = parseInt(button.dataset.index);
+            if (confirm(`Remove employee "${employees[index]}"?`)) {
+                employees.splice(index, 1);
+                saveEmployees();
+                updateEmployeeUI();
+            }
+        }
+    });
+
+    dom.saveSettingsBtn.onclick = () => {
+        // Save Ticket Config
+        const newTicketConfig = [], newTicketState = [];
+        const configRows = dom.settingsTableBody.querySelectorAll('tr');
+        configRows.forEach((row, i) => {
+             const name = row.querySelector(`input[data-prop="name"]`).value, price = parseFloat(row.querySelector(`input[data-prop="price"]`).value), bookSize = parseInt(row.querySelector(`input[data-prop="bookSize"]`).value), initial = parseInt(row.querySelector(`input[data-prop="initial"]`).value);
+            newTicketConfig.push({ id:i, name, price, bookSize });
+            newTicketState.push({ id:i, lastNumber: initial });
+        });
+        ticketConfig = newTicketConfig;
+        ticketState = newTicketState;
+        localStorage.setItem('lotteryTicketConfig', JSON.stringify(ticketConfig));
+        saveState();
+        
+        renderApp();
+        dom.settingsModal.style.display = 'none';
+        alert('Ticket configuration saved!');
+    };
+
+    dom.calculateDayBtn.onclick = () => performCalculation();
+    ['actualCashA', 'actualCashB'].forEach(id => document.getElementById(id).addEventListener('input', () => performCalculation()));
+
+    dom.saveDayBtn.onclick = () => {
+        const dayReport = performCalculation(true);
+        if (!dayReport) { alert("Calculation failed. Please check your inputs."); return; }
+
+        if(editingReportIndex !== null){
+            dailyReports[editingReportIndex] = dayReport;
+            alert(`Day report for ${new Date(dayReport.date).toLocaleDateString('en-US', { timeZone: 'UTC' })} has been updated!`);
+        } else {
+            dailyReports.push(dayReport);
+            alert(`Day report for ${new Date(dayReport.date).toLocaleDateString('en-US', { timeZone: 'UTC' })} added!`);
+        }
+        
+        dailyReports.sort((a,b) => new Date(a.date) - new Date(b.date));
+        saveReports();
+        
+        ticketState = dayReport.shiftB.ticketDetails.map(t => ({id: t.id, lastNumber: t.currentNum }));
+        saveState();
+        
+        const currentDate = new Date(dom.shiftDateInput.value);
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        dom.shiftDateInput.value = currentDate.toISOString().split('T')[0];
+        resetDayInputs(true);
+        renderMainTable();
+    };
+    
+    dom.pendingReportsList.addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if(!target) return;
+        
+        const index = parseInt(target.dataset.index);
+        
+        if (target.classList.contains('load-report-btn')) {
+            loadReportForEditing(index);
+        } else if (target.classList.contains('remove-report-btn')) {
+            if (confirm(`Remove report for ${new Date(dailyReports[index].date).toLocaleDateString('en-US',{timeZone:'UTC'})}?`)){
+                dailyReports.splice(index, 1);
+                saveReports();
+                if(editingReportIndex === index) resetDayInputs(true);
+                else updatePendingReportsUI();
+            }
+        }
+    });
+    
+    function loadReportForEditing(index) {
+        resetDayInputs(false); // don't reset editing state
+        const report = dailyReports[index];
+        editingReportIndex = index;
+
+        dom.shiftDateInput.value = report.date;
+        // Shift A
+        dom.personNameA.value = report.shiftA.personName;
+        dom.onlineSalesA.value = report.shiftA.onlineSales;
+        dom.onlineCashesA.value = report.shiftA.onlineCashes;
+        dom.instantCashesA.value = report.shiftA.instantCashes;
+        dom.actualCashA.value = report.shiftA.actualCash;
+
+        // Shift B
+        dom.personNameB.value = report.shiftB.personName;
+        dom.onlineSalesB.value = report.shiftB.onlineSales;
+        dom.onlineCashesB.value = report.shiftB.onlineCashes;
+        dom.instantCashesB.value = report.shiftB.instantCashes;
+        dom.actualCashB.value = report.shiftB.actualCash;
+        
+        // Ticket details - MODIFIED LOGIC
+        report.shiftA.ticketDetails.forEach(savedTicketA => {
+            // Find the current configuration for this ticket by its name, not its old ID
+            const currentTicketConfig = ticketConfig.find(c => c.name === savedTicketA.name);
+            
+            // If the ticket still exists in the current configuration...
+            if (currentTicketConfig) {
+                const row = document.getElementById(`row-${currentTicketConfig.id}`);
+                if (!row) return; // Safety check
+
+                const prevInput = row.querySelector('.prev-number-input');
+                const shiftAInput = row.querySelector('.shift-a-input');
+                const shiftBInput = row.querySelector('.shift-b-input');
+
+                // Find the corresponding Shift B data from the report
+                const savedTicketB = report.shiftB.ticketDetails.find(tb => tb.name === savedTicketA.name);
+                if (!savedTicketB) return; // Should always exist, but another safety check
+
+                // Populate Previous # from the saved Shift A start number
+                prevInput.value = savedTicketA.prevNum === -1 ? '' : savedTicketA.prevNum;
+                prevInput.placeholder = savedTicketA.prevNum === -1 ? 'SOLD' : '';
+                if (savedTicketA.prevNum === -1) prevInput.classList.add('nil-input'); else prevInput.classList.remove('nil-input');
+
+                // Populate Shift A End #
+                shiftAInput.value = savedTicketA.currentNum === -1 ? '' : savedTicketA.currentNum;
+                shiftAInput.placeholder = savedTicketA.currentNum === -1 ? 'SOLD' : '';
+                if (savedTicketA.currentNum === -1) shiftAInput.classList.add('nil-input'); else shiftAInput.classList.remove('nil-input');
+                
+                // Populate Shift B End #
+                shiftBInput.value = savedTicketB.currentNum === -1 ? '' : savedTicketB.currentNum;
+                shiftBInput.placeholder = savedTicketB.currentNum === -1 ? 'SOLD' : '';
+                if (savedTicketB.currentNum === -1) shiftBInput.classList.add('nil-input'); else shiftBInput.classList.remove('nil-input');
+            }
+        });
+        
+        updatePendingReportsUI();
+        performCalculation(); // Recalculate summaries with loaded data
+    }
+
+
+    dom.generateConsolidatedPdfBtn.onclick = () => generateDailyReportPDF();
+    dom.clearPendingBtn.onclick = () => { if(confirm("Clear all pending reports?")){ dailyReports = []; saveReports(); updatePendingReportsUI(); } };
+
+    dom.ticketsTableBody.addEventListener('click', function(e) {
+        const row = e.target.closest('.ticket-row'); if (!row) return;
+        const id = parseInt(row.id.split('-')[1]);
+        if (e.target.classList.contains('nil-btn')) {
+            const shift = e.target.dataset.shift;
+            const input = row.querySelector(shift === 'A' ? '.shift-a-input' : '.shift-b-input');
+            input.value = -1; input.placeholder = 'SOLD'; input.classList.add('nil-input');
+        } else if (e.target.classList.contains('reload-btn')) {
+            const config = ticketConfig.find(t => t.id === id);
+            const prevInput = row.querySelector('.prev-number-input');
+            const shiftAInput = row.querySelector('.shift-a-input');
+            const shiftBInput = row.querySelector('.shift-b-input');
+            const newStartNum = config.bookSize - 1;
+
+            prevInput.value = newStartNum;
+            prevInput.classList.remove('nil-input');
+            prevInput.placeholder = '';
+            
+            shiftAInput.value = '';
+            shiftAInput.classList.remove('nil-input');
+            shiftAInput.placeholder = newStartNum;
+            
+            shiftBInput.value = '';
+            shiftBInput.classList.remove('nil-input');
+            shiftBInput.placeholder = '';
+
+        } else if (e.target.classList.contains('nil-p-btn')) {
+            const prevInput = row.querySelector('.prev-number-input');
+            prevInput.value = -1;
+            prevInput.placeholder = 'SOLD';
+            prevInput.classList.add('nil-input');
+            row.querySelector('.shift-a-input').placeholder = 'SOLD';
+        }
+    });
+    
+    // --- Keyboard Navigation ---
+    document.addEventListener('keydown', function(e) {
+        const target = e.target;
+        if (!target.matches('input[type="number"], input[type="text"]')) return;
+        const tableBody = target.closest('tbody');
+        if (tableBody && (tableBody.id === 'ticketsTableBody' || tableBody.id === 'settingsTableBody')) {
+            const currentCell = target.closest('td'), currentRow = target.closest('tr'); if (!currentCell || !currentRow) return;
+            const allRows = Array.from(tableBody.children).filter(r => r.offsetParent !== null), rowIndex = allRows.indexOf(currentRow), allCellsInRow = Array.from(currentRow.children), cellIndex = allCellsInRow.indexOf(currentCell);
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const nextRow = allRows[rowIndex + 1]; if (nextRow) { const targetCell = nextRow.children[cellIndex]; if (targetCell) { const input = targetCell.querySelector('input'); if (input) { input.focus(); input.select(); } } }
+            } else if (e.key === 'Tab' && !e.shiftKey) {
+                const focusable = Array.from(currentRow.querySelectorAll('input:not([disabled])')), currentInputIndex = focusable.indexOf(target);
+                if (currentInputIndex === focusable.length - 1) { const nextRow = allRows[rowIndex + 1]; if (nextRow) { const firstInput = nextRow.querySelector('input:not([disabled])'); if (firstInput) { e.preventDefault(); firstInput.focus(); } } }
+            }
+        } else if (e.key === 'Enter' && target.classList.contains('data-entry')) {
+            e.preventDefault();
+            const fields = Array.from(document.querySelectorAll('.data-entry:not(tbody input)'));
+            const currentIndex = fields.indexOf(target);
+            if (currentIndex > -1) { const nextIndex = (currentIndex + 1) % fields.length; fields[nextIndex].focus(); }
+        }
+    });
+
+    // --- Calculation Engine ---
+    function calculateSoldCount(prevNum, currentNum, bookSize) {
+        prevNum = parseInt(prevNum); currentNum = parseInt(currentNum); bookSize = parseInt(bookSize);
+        if (prevNum === -1) return 0; // If book starts as NIL, no sales can happen from it.
+        if (isNaN(prevNum) || isNaN(currentNum) || isNaN(bookSize)) return 0;
+        if (currentNum === -1) return prevNum + 1;
+        if (currentNum === prevNum) return 0;
+        if (currentNum < prevNum) return prevNum - currentNum;
+        return (prevNum + 1) + ((bookSize - 1) - currentNum);
+    }
+
+    function performCalculation(isFinal = false) {
+        let shiftA = { ticketDetails: [], totalScratchSales: 0 },
+            shiftB = { ticketDetails: [], totalScratchSales: 0 };
+
+        document.querySelectorAll('.ticket-row').forEach(row => {
+            const id = parseInt(row.id.split('-')[1]);
+            const config = ticketConfig.find(t => t.id === id);
+            
+            let prevNumInput = row.querySelector('.prev-number-input').value;
+            let prevNum = prevNumInput.trim() === '' || prevNumInput === '-1' ? -1 : parseInt(prevNumInput);
+
+            // --- Shift A Calculation ---
+            const numAInput = row.querySelector('.shift-a-input').value;
+            let numA;
+
+            if (numAInput.trim() === '') {
+                numA = prevNum;
+            } else {
+                numA = parseInt(numAInput);
+            }
+            const soldA = calculateSoldCount(prevNum, numA, config.bookSize);
+            const totalA = soldA * config.price;
+            shiftA.totalScratchSales += totalA;
+            row.querySelector('.sold-a-count').textContent = soldA;
+            row.querySelector('.total-a-amount').textContent = `$${totalA.toFixed(2)}`;
+            shiftA.ticketDetails.push({ id, name: config.name, price: config.price, bookSize: config.bookSize, prevNum, currentNum: numA, soldCount: soldA, totalAmount: totalA });
+
+            // --- Shift B Calculation ---
+            const numBInput = row.querySelector('.shift-b-input').value;
+            let numB = numBInput.trim() === '' ? numA : parseInt(numBInput);
+
+            row.querySelector('.shift-b-input').placeholder = numA === -1 ? 'SOLD' : numA;
+
+            const soldB = calculateSoldCount(numA, numB, config.bookSize);
+            const totalB = soldB * config.price;
+            shiftB.totalScratchSales += totalB;
+            row.querySelector('.sold-b-count').textContent = soldB;
+            row.querySelector('.total-b-amount').textContent = `$${totalB.toFixed(2)}`;
+            shiftB.ticketDetails.push({ id, name: config.name, price: config.price, bookSize: config.bookSize, prevNum: numA, currentNum: numB, soldCount: soldB, totalAmount: totalB });
+        });
+        
+        calculateSummary('A', shiftA.totalScratchSales);
+        calculateSummary('B', shiftB.totalScratchSales); 
+        
+        if (isFinal) {
+            shiftA.date = shiftB.date = dom.shiftDateInput.value;
+            shiftA.personName = dom.personNameA.value || 'N/A';
+            shiftB.personName = dom.personNameB.value || 'N/A';
+            shiftA.onlineSales = parseFloat(dom.onlineSalesA.value) || 0;
+            shiftA.onlineCashes = parseFloat(dom.onlineCashesA.value) || 0;
+            shiftA.instantCashes = parseFloat(dom.instantCashesA.value) || 0;
+            shiftA.actualCash = parseFloat(dom.actualCashA.value) || 0;
+            shiftA.totalScratchSales = shiftA.totalScratchSales;
+            shiftA.difference = dom.differenceA.textContent;
+            shiftB.onlineSales = parseFloat(dom.onlineSalesB.value) || 0;
+            shiftB.onlineCashes = parseFloat(dom.onlineCashesB.value) || 0;
+            shiftB.instantCashes = parseFloat(dom.instantCashesB.value) || 0;
+            shiftB.actualCash = parseFloat(dom.actualCashB.value) || 0;
+            shiftB.totalScratchSales = shiftB.totalScratchSales;
+            shiftB.difference = dom.differenceB.textContent;
+
+            // --- NEW CODE START ---
+            // Check if any data was actually entered for the shift's financial fields.
+            // This is more reliable than checking for zero values.
+            shiftA.dataEntered = !(dom.onlineSalesA.value === '' && dom.onlineCashesA.value === '' && dom.instantCashesA.value === '' && dom.actualCashA.value === '');
+            shiftB.dataEntered = !(dom.onlineSalesB.value === '' && dom.onlineCashesB.value === '' && dom.instantCashesB.value === '' && dom.actualCashB.value === '');
+            // --- NEW CODE END ---
+
+            return { date: dom.shiftDateInput.value, shiftA, shiftB };
+        }
+        return null;
+    }
+
+    function calculateSummary(shift, totalScratchSales, additionalScratchSales = 0) {
+        const s = shift.toUpperCase();
+        dom[`totalScratchSales${s}`].textContent = `$${totalScratchSales.toFixed(2)}`;
+        dom[`expectedScratchCash${s}`].textContent = `$${totalScratchSales.toFixed(2)}`;
+        const onlineSales = parseFloat(dom[`onlineSales${s}`].value) || 0;
+        const onlineCashes = parseFloat(dom[`onlineCashes${s}`].value) || 0;
+        const instantCashes = parseFloat(dom[`instantCashes${s}`].value) || 0;
+        const expected = onlineSales - onlineCashes - instantCashes + totalScratchSales + additionalScratchSales;
+        dom[`totalExpectedCash${s}`].textContent = `$${expected.toFixed(2)}`;
+        
+        const actual = parseFloat(dom[`actualCash${s}`].value) || 0;
+        const diffEl = dom[`difference${s}`];
+        if (isNaN(actual) && dom[`actualCash${s}`].value === '') {
+            diffEl.textContent = '---';
+            diffEl.className = 'text-2xl font-bold text-center p-2 rounded-md';
+            return;
+        }
+        const diff = actual - expected;
+        diffEl.textContent = `$${diff.toFixed(2)}`;
+        if (diff < 0) diffEl.className = 'text-2xl font-bold text-center p-2 rounded-md bg-red-100 text-red-700';
+        else if (diff > 0) diffEl.className = 'text-2xl font-bold text-center p-2 rounded-md bg-green-100 text-green-700';
+        else diffEl.className = 'text-2xl font-bold text-center p-2 rounded-md bg-blue-100 text-blue-700';
+    }
+    
+    function resetDayInputs(startNextDay) {
+        editingReportIndex = null;
+        ['A', 'B'].forEach(s => {
+            ['personName','onlineSales','onlineCashes','instantCashes','actualCash'].forEach(id => dom[`${id}${s}`].value = '');
+            ['totalScratchSales','expectedScratchCash','totalExpectedCash'].forEach(id => dom[`${id}${s}`].textContent = '$0.00');
+            dom[`difference${s}`].textContent = '---';
+            dom[`difference${s}`].className = 'text-2xl font-bold text-center p-2 rounded-md';
+        });
+        document.querySelectorAll('.shift-a-input, .shift-b-input').forEach(i => { i.value = ''; i.classList.remove('nil-input'); });
+        document.querySelectorAll('.sold-a-count, .sold-b-count').forEach(el => el.textContent = '0');
+        document.querySelectorAll('.total-a-amount, .total-b-amount').forEach(el => el.textContent = '$0.00');
+        if(startNextDay) {
+            updatePendingReportsUI();
+        }
+    }
+
+    // --- Session Management ---
+    dom.exportSessionBtn.onclick = () => {
+        const sessionData = {
+            ticketConfig,
+            ticketState,
+            dailyReports,
+            employees
+        };
+        const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `lottery_session_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    };
+
+    dom.importSessionInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if(!confirm("Importing a session will overwrite all current data. Are you sure?")) {
+            e.target.value = ''; // Reset file input
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if (data.ticketConfig && data.ticketState && data.dailyReports && data.employees) {
+                    localStorage.setItem('lotteryTicketConfig', JSON.stringify(data.ticketConfig));
+                    localStorage.setItem('lotteryTicketState', JSON.stringify(data.ticketState));
+                    localStorage.setItem('lotteryDailyReports', JSON.stringify(data.dailyReports));
+                    localStorage.setItem('lotteryEmployees', JSON.stringify(data.employees));
+                    alert('Session imported successfully! The page will now reload.');
+                    window.location.reload();
+                } else {
+                    alert('Invalid session file format.');
+                }
+            } catch (error) {
+                alert('Error reading session file. Make sure it is a valid JSON file.');
+            } finally {
+                 e.target.value = ''; // Reset file input
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    // --- PDF Generation ---
+    function generateDailyReportPDF() {
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+
+        dailyReports.forEach((day, index) => {
+            if (index > 0) doc.addPage('letter', 'portrait');
+
+            // --- NEW: Add NJ Lottery Logo to PDF ---
+            if (njLogoBase64) {
+                try {
+                    doc.addImage(njLogoBase64, 'PNG', 40, 25, 100, 31); // x, y, width, height
+                } catch(e) {
+                    console.error("Error adding image to PDF:", e);
+                }
+            }
+            
+            const reportDate = new Date(day.date);
+            const dateString = reportDate.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            doc.setFontSize(10).setFont(undefined, 'bold');
+            doc.text("Hudson Mart | 104 Washington Street, Hoboken NJ", doc.internal.pageSize.getWidth() / 2, 25, { align: 'center' }); // Adjusted Y for logo
+            
+            doc.setFontSize(14).setFont(undefined, 'bold');
+            doc.text(dateString, doc.internal.pageSize.getWidth() / 2, 45, { align: 'center' }); // Adjusted Y for logo
+
+            const formatTicketNum = (num) => (num < 0 ? '' : num);
+
+            const head = [['#', 'Name', 'P', 'A', 'C', '$', 'T', 'B', 'C', 'T']];
+            const body = [], ticketCount = day.shiftA.ticketDetails.length;
+            let totalA = 0, totalB = 0;
+
+            for(let i=0; i < ticketCount; i++){
+                const tA = day.shiftA.ticketDetails[i], tB = day.shiftB.ticketDetails[i];
+                body.push([
+                    i+1, 
+                    tA.name, 
+                    formatTicketNum(tA.prevNum),
+                    formatTicketNum(tA.currentNum), 
+                    tA.soldCount, 
+                    `$${tA.price}`, 
+                    `$${tA.totalAmount.toFixed(2)}`,
+                    formatTicketNum(tB.currentNum), 
+                    tB.soldCount, 
+                    `$${tB.totalAmount.toFixed(2)}`
+                ]);
+                totalA += tA.totalAmount; totalB += tB.totalAmount;
+            }
+            body.push(['', 'TOTAL', '', '', '', '', `$${totalA.toFixed(2)}`, '', '', `$${totalB.toFixed(2)}`]);
+
+            doc.autoTable({
+                head, body, startY: 70, theme: 'grid',
+                styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+                headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
+                footStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
+                didDrawCell: (data) => { if (data.row.index === body.length - 1) doc.setFont(undefined, 'bold'); },
+                columnStyles: {
+                    1: { cellWidth: 150 }, // Name column
+                },
+                // --- NEW: Color Price Column ---
+                didParseCell: (data) => {
+                    if (data.section === 'body' && data.column.index === 5) { // Index 5 is the Price ($) column
+                        data.cell.styles.textColor = [34, 139, 34]; // Forest Green RGB
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                }
+            });
+
+            const tableEndY = doc.lastAutoTable.finalY;
+            let summaryY = tableEndY + 20;
+            const leftColX = 40, midColX = 250, rightColX = 420, lineSpacing = 15;
+
+            // Shift A Summary
+            doc.setFontSize(10).setFont(undefined, 'bold');
+            doc.text(`Shift-A (${day.shiftA.personName})`, leftColX, summaryY);
+            summaryY += lineSpacing;
+            doc.setFont(undefined, 'normal');
+
+            if (!day.shiftA.dataEntered) {
+                doc.setFont(undefined, 'italic');
+                doc.text('Numbers not entered for this shift.', leftColX, summaryY);
+                summaryY += lineSpacing; 
+            } else {
+                doc.text(`Online Sales: $${day.shiftA.onlineSales.toFixed(2)}`, leftColX, summaryY);
+                doc.text(`Expected Scratch-Off Cash: $${day.shiftA.totalScratchSales.toFixed(2)}`, midColX, summaryY);
+                
+                // --- NEW: Color Shift A Difference ---
+                doc.setFontSize(12).setFont(undefined, 'bold');
+                let diffColorA = [0, 0, 0]; // Default black
+                if (day.shiftA.difference.includes('-')) { // Negative difference (short)
+                    diffColorA = [255, 0, 0]; // Red
+                } else if (!day.shiftA.difference.includes('$0.00')) { // Positive difference (over) and not exactly zero
+                    diffColorA = [34, 139, 34]; // Forest Green
+                }
+                doc.setTextColor(diffColorA[0], diffColorA[1], diffColorA[2]);
+                doc.text(`Difference: ${day.shiftA.difference}`, rightColX, summaryY);
+                doc.setTextColor(0, 0, 0); // Reset color to black for subsequent text
+                doc.setFontSize(10).setFont(undefined, 'normal');
+                // --- END NEW ---
+
+                summaryY += lineSpacing;
+                doc.text(`Online Cashes: -$${day.shiftA.onlineCashes.toFixed(2)}`, leftColX, summaryY);
+                summaryY += lineSpacing;
+                doc.text(`Instant Cashes: -$${day.shiftA.instantCashes.toFixed(2)}`, leftColX, summaryY);
+                summaryY += lineSpacing;
+            }
+
+            summaryY += lineSpacing; 
+
+            // Shift B Summary
+            doc.setFontSize(10).setFont(undefined, 'bold');
+            doc.text(`Shift-B (${day.shiftB.personName})`, leftColX, summaryY);
+            summaryY += lineSpacing;
+            doc.setFont(undefined, 'normal');
+
+            if (!day.shiftB.dataEntered) {
+                 doc.setFont(undefined, 'italic');
+                doc.text('Numbers not entered for this shift.', leftColX, summaryY);
+            } else {
+                doc.text(`Online Sales: $${day.shiftB.onlineSales.toFixed(2)}`, leftColX, summaryY);
+                doc.text(`Expected Scratch-Off Cash: $${day.shiftB.totalScratchSales.toFixed(2)}`, midColX, summaryY);
+                
+                // --- NEW: Color Shift B Difference ---
+                doc.setFontSize(12).setFont(undefined, 'bold');
+                let diffColorB = [0, 0, 0]; // Default black
+                if (day.shiftB.difference.includes('-')) { // Negative difference (short)
+                    diffColorB = [255, 0, 0]; // Red
+                } else if (!day.shiftB.difference.includes('$0.00')) { // Positive difference (over) and not exactly zero
+                    diffColorB = [34, 139, 34]; // Forest Green
+                }
+                doc.setTextColor(diffColorB[0], diffColorB[1], diffColorB[2]);
+                doc.text(`Difference: ${day.shiftB.difference}`, rightColX, summaryY);
+                doc.setTextColor(0, 0, 0); // Reset color to black for subsequent text
+                doc.setFontSize(10).setFont(undefined, 'normal');
+                // --- END NEW ---
+
+                summaryY += lineSpacing;
+                doc.text(`Online Cashes: -$${day.shiftB.onlineCashes.toFixed(2)}`, leftColX, summaryY);
+                summaryY += lineSpacing;
+                doc.text(`Instant Cashes: -$${day.shiftB.instantCashes.toFixed(2)}`, leftColX, summaryY);
+            }
+
+        });
+        doc.save(`Consolidated_Lottery_Report.pdf`);
+    }
+
+    loadData();
+});
+</script>
+</body>
+</html>
+
