@@ -1,13 +1,16 @@
-// components/Header.tsx
+"use client";
+import { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
 
-const Header = () => {
+
+
+export default function Header() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   return (
-    <header className="fixed top-0 z-20 w-full py-4 px-8 flex items-center justify-between border-b" >
-      {/* Logo */}
-      
-      <Link href="/">
+    <header className="navbar" >
+
+      <Link href="/" className='logo'>
         <Image
           src="/logo.svg"
           alt="MediHealth"
@@ -17,28 +20,31 @@ const Header = () => {
         />
       </Link>
 
-      {/* Navigation Links */}
-      <nav className="hidden md:flex items-center gap-8">
-        <Link href="/about" className="text-gray-600 hover:text-black">
-          About
-        </Link>
-        <Link href="/testimony" className="text-gray-600 hover:text-black">
-          Testimony
-        </Link>
-        <Link href="/blogs" className="text-gray-600 hover:text-black">
-          Blogs
-        </Link>
+      <nav className="nav-links">
+        <Link href="/about" className="text-gray-600 hover:text-black">About</Link>
+        <Link href="/testimony" className="text-gray-600 hover:text-black">Testimony</Link>
+        <Link href="/blogs" className="text-gray-600 hover:text-black">Blogs</Link>
       </nav>
 
-      {/* Sign In/Sign Up Button */}
-      <Link
-        href="/auth/login"
-        className="bg-white text-black px-6 py-2 rounded-full shadow-md font-semibold hover:bg-gray-100 transition-colors"
-      >
-        Sign up / sign in
-      </Link>
+
+      <Link href="/auth/login" className="login-signup-button">Sign up / sign in</Link>
+      <button 
+          onClick={() => setIsMenuOpen(!isMenuOpen)} 
+          className="md:hidden p-2"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="/menu.svg">
+            <path d="M4 6H20M4 12H20M4 18H20" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <div className={`
+        ${isMenuOpen ? 'flex' : 'hidden'} 
+        flex-col gap-4 absolute top-full left-0 w-full bg-white p-4 shadow-md border-t
+        md:hidden 
+      `}>
+        <Link href="/about" className="text-gray-600 hover:text-black">About</Link>
+        <Link href="/testimony" className="text-gray-600 hover:text-black">Testimony</Link>
+        <Link href="/blogs" className="text-gray-600 hover:text-black">Blogs</Link>
+      </div>
     </header>
   );
 };
-
-export default Header;

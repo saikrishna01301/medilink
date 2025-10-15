@@ -4,12 +4,12 @@
 @tailwind utilities;
 .bg-custom-gradient {
   background-color: white; /* The color below 1000px */
-  background-image: linear-gradient(to bottom, #CFDCE1, #F2F7FA 1200px);
+  background-image: linear-gradient(to bottom, #cfdce1, #f2f7fa 1200px);
   background-repeat: no-repeat; /* Prevents the gradient from tiling */
 }
 
 :root {
-  --background: #CFDCE1;
+  --background: #cfdce1;
   --foreground: #171717;
 }
 
@@ -22,7 +22,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #CFDCE1;
+    --background: #cfdce1;
     --foreground: #ededed;
   }
 }
@@ -34,23 +34,22 @@ body {
 }
 
 header {
-  width: 978px;
+  /* width: 978px; */
   height: 78px;
   align-self: center;
 }
 
-
 @font-face {
-  font-family: 'Adoha';
-  src: url('/fonts/Adoha-Regular.ttf') format('truetype');
+  font-family: "Adoha";
+  src: url("/fonts/Adoha-Regular.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
 
 /* Create a helper class to easily apply the font */
 .font-adoha {
-  font-family: 'Adoha', sans-serif;
+  font-family: "Adoha", sans-serif;
 }
 .font-urbane {
-  font-family: 'Urbane', sans-serif;
+  font-family: "Urbane", sans-serif;
 }
