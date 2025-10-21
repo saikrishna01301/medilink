@@ -20,9 +20,31 @@ pipeline {
                     echo 'Installing dependencies inside the frontend directory...'
                     sh 'npm cache clean --force' 
                     sh 'rm -rf node_modules package-lock.json'
-                    // sh 'sudo chown -R 105:111 "/.npm'
+                    sh 'sudo chown -R 105:111 "/.npm'
                     // sh 'export npm_config_cache=/path/to/cache'
-                    // sh 'npm install'
+                    sh 'npm install'
+                    echo 'sudo n'
+                }
+            }
+            post {
+                always {
+                    // Always notify in the specified channel
+                    slackSend channel: 'team2', 
+                            message: "Build *${currentBuild.fullDisplayName}* finished: ${currentBuild.currentResult}"
+                }
+                
+                failure {
+                    // Send an extra notification on failure
+                    slackSend channel: 'team2', 
+                            color: 'danger', // 'good', 'warning', or a hex color
+                            message: "Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
+                }
+                
+                success {
+                    // Send a notification on success
+                    slackSend channel: 'team2', 
+                            color: 'good',
+                            message: "Build *${currentBuild.fullDisplayName}* SUCCEEDED."
                 }
             }
         }
@@ -32,8 +54,25 @@ pipeline {
                     def imageTag = env.GIT_COMMIT.take(8)
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
                     echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
-                    // Important: The build context is now the frontend subfolder
                     sh "docker build -f frontend/Dockerfile -t ${env.FULL_IMAGE_NAME} frontend/"
+                }
+            }
+            post {
+                always {
+                    slackSend channel: 'team2', 
+                            message: "Docker Build *${currentBuild.fullDisplayName}* finished: ${currentBuild.currentResult}"
+                }
+                
+                failure {
+                    slackSend channel: 'team2', 
+                            color: 'danger', 
+                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
+                }
+                
+                success {
+                    slackSend channel: 'team2', 
+                            color: 'good',
+                            message: "Docker Build *${currentBuild.fullDisplayName}* SUCCEEDED."
                 }
             }
         }
@@ -57,6 +96,24 @@ pipeline {
                     docker rm ${DOCKER_IMAGE_NAME} || true
                     docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 80:3000 ${env.FULL_IMAGE_NAME}
                 """
+            }
+            post {
+                always {
+                    slackSend channel: 'team2', 
+                            message: "Docker Build *${currentBuild.fullDisplayName}* remote pushed: ${currentBuild.currentResult}"
+                }
+                
+                failure {
+                    slackSend channel: 'team2', 
+                            color: 'danger', 
+                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
+                }
+                
+                success {
+                    slackSend channel: 'team2', 
+                            color: 'good',
+                            message: "Docker Build *${currentBuild.fullDisplayName}* remote image pushed and deployed."
+                }
             }
         }
     }
