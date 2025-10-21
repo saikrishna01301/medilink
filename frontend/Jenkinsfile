@@ -1,7 +1,5 @@
-// ~/projects/medihealth/frontend/Jenkinsfile
-
 pipeline {
-    agent any
+    // agent any
     environment {
         DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
         DOCKERHUB_USERNAME = 'virtualviking98'
@@ -20,7 +18,7 @@ pipeline {
                     echo 'Installing dependencies inside the frontend directory...'
                     sh 'npm cache clean --force' 
                     sh 'rm -rf node_modules package-lock.json'
-                    sh 'sudo chown -R 105:111 "/.npm'
+                    sh 'sudo chown -R 105:111 "/.npm"'
                     // sh 'export npm_config_cache=/path/to/cache'
                     sh 'npm install'
                     echo 'sudo n'
