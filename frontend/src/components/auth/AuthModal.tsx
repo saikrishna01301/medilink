@@ -34,10 +34,10 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
     >
       <div
         // Changed w-[50%] back to w-[80%] to match original CSS and provide space
-        className="bg-white w-[1002px] max-w-[1002px] h-[600px] rounded-[10px] p-[30px] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+        className="bg-white w-[1100px] max-w-[1100px] min-h-[620px] h-[650px] rounded-[10px] p-[30px] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center">
+        <div className="min-h-[10] flex justify-between items-center">
           {/* Logo width reduced from 150px to 100px */}
           <img src="/logo.svg" alt="Logo" className="w-[150px] ml-20" />
 
@@ -75,7 +75,7 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
           </div>
         </div>
 
-        <div className="mt-[40px] flex items-center gap-[40px]">
+        <div className="mt-[40px] flex gap-[40px]">
           <div className="w-[40%] flex flex-col gap-[20px]">
             <h3 className="text-center text-[26px] text-[#111] mb-[10px] font-semibold">
               Select Role
