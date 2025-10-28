@@ -45,10 +45,10 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
             <button
               onClick={() => setSelectedAuthMode("SignUp")}
               className={`
-      bg-inherit text-[20px] px-[25px] py-[10px] cursor-pointer transition-all
+      bg-inherit text-[20px] px-[25px] py-[10px] cursor-pointer 
       ${
         selectedAuthMode === "SignUp"
-          ? // Active state: Use the border
+          ? // Active state: Use the borders
             "text-[#111] border-2 border-[#111] rounded-[25px]"
           : // Inactive state: Apply color and explicitly remove any border
             "text-[#888] border-none"
@@ -60,7 +60,7 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
             <button
               onClick={() => setSelectedAuthMode("SignIn")}
               className={`
-      bg-inherit text-[20px] px-[25px] py-[10px] cursor-pointer transition-all
+      bg-inherit text-[20px] px-[25px] py-[10px] cursor-pointer 
       ${
         selectedAuthMode === "SignIn"
           ? // Active state: Use the border
