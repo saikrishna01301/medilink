@@ -29,8 +29,7 @@ pipeline {
         SENDER_EMAIL = credentials('sender-email')
         SENDER_PASSWORD = credentials('sender-password')
         
-        // GCP Service Account
-        GCP_KEY_FILE = credentials('gcp-service-account-key')
+        // Note: GCP_KEY_FILE handled in withCredentials block
     }
     
     options {
@@ -64,21 +63,23 @@ pipeline {
             steps {
                 echo '📤 Pushing image to GCR...'
                 script {
-                    sh """
-                        # Authenticate with GCP
-                        echo '${GCP_KEY_FILE}' > gcp-key.json
-                        gcloud auth activate-service-account --key-file=gcp-key.json
-                        gcloud config set project ${GCP_PROJECT_ID}
+                    // Use withCredentials to properly handle Secret File
+                    withCredentials([file(credentialsId: 'gcp-service-account-key', variable: 'GCP_KEY')]) {
+                        sh """
+                            # Authenticate with GCP
+                            gcloud auth activate-service-account --key-file=\${GCP_KEY}
+                            gcloud config set project ${GCP_PROJECT_ID}
                         
-                        # Configure Docker for GCR
-                        gcloud auth configure-docker
-                        
-                        # Tag and push image
-                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                        docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                        docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                    """
+                            # Configure Docker for GCR
+                            gcloud auth configure-docker
+                            
+                            # Tag and push image
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
+                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
+                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
+                        """
+                    }
                 }
             }
         }
@@ -154,8 +155,6 @@ GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json \
             echo '❌ Backend deployment failed!'
         }
         cleanup {
-            // Clean up credentials
-            sh 'rm -f gcp-key.json'
             // Clean up old images
             sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
         }
