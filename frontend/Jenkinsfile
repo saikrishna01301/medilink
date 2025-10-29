@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
+        DOCKERHUB_USERNAME = 'virtualviking98'
+        DOCKER_IMAGE_NAME = 'medihealth-frontend' 
+    }
+
+    stages {
+        
+        stage('Checkout Code') { steps { echo 'Checking out...'; checkout scm } }
+        stage('Build & Test') { steps { echo 'Testing...'; sh 'npm install'; /* sh 'npm test' */ } }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def imageTag = env.GIT_COMMIT.take(8)
+                    env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
+                    sh "docker build -f Dockerfile.dev -t ${env.FULL_IMAGE_NAME} ."
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                withDockerRegistry([credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
+                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deploying container on the Jenkins host..."
+                sh """
+                    docker stop ${DOCKER_IMAGE_NAME} || true
+                    docker rm ${DOCKER_IMAGE_NAME} || true
+                    
+                    # This command is different for the frontend
+                    # We map host port 80 to the container's port 3000
+                    docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 80:3000 ${env.FULL_IMAGE_NAME}
+                """
+            }
+        }
+    }
+    
+    post { always { cleanWs() } }
+}

@@ -1,0 +1,13 @@
+// To install all the packages
+
+pip install -r requirements.txt
+
+//to enter/activate virtual environment 
+
+source venv/bin/activate    (to off use deactivate)
+
+//to start the server
+
+uvicorn main:app --reload
+
+
