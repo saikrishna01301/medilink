@@ -8,18 +8,18 @@ pipeline {
     
     environment {
         // Docker Configuration
-        IMAGE_NAME = 'medilink-frontend'
+        IMAGE_NAME = 'medihealth-frontend'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        GCP_PROJECT_ID = credentials('gcp-project-id')
-        GCP_REGION = 'us-central1'
-        INSTANCE_NAME = 'medilink-frontend-instance'
+        GCP_PROJECT_ID = credentials('ethereal-effort-475219-c2')
+        GCP_REGION = 'us-east4'
+        INSTANCE_NAME = 'medimealth-dev'
         
         // Backend API URL (your deployed backend)
-        NEXT_PUBLIC_API_URL = credentials('backend-api-url')
+        NEXT_PUBLIC_API_URL = credentials('http://10.128.0.2:8000')
         NODE_ENV = 'production'
         
         // GCP Service Account
-        GCP_KEY_FILE = credentials('gcp-service-account-key')
+        GCP_KEY_FILE = credentials('/frontend/ethereal-effort-475219-c2-787bfb9ea29f.json')
     }
     
     options {
