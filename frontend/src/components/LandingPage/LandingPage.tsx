@@ -32,13 +32,14 @@ const LandingPage = () => {
             MediHealth Brings your medical history, prescription, and tests
             results
             <br />
-            together connecting you seamlessly with your doctor's and insurer.
+            together connecting you seamlessly with your doctors and insurer.
           </p>
           <div className="flex-container width-1230 flex justify-between items-center p-4">
             {/* Item 1: The Image */}
             <img
               className=""
               src="/Asset2.svg"
+              alt="Healthcare illustration"
               width={532}
               style={{ marginLeft: "-90px", transform: "scaleX(-1)" }} // Removed the negative margin for now
             />

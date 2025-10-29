@@ -1,0 +1,52 @@
+# ===================================
+# Backend Pipeline - Standalone Deployment
+# ===================================
+# Use this in your backend CI/CD pipeline
+# Deploy command: docker-compose -f docker-compose.backend.yml up -d
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medilink-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      # Cloud SQL Configuration
+      - USE_CLOUD_SQL=${USE_CLOUD_SQL:-true}
+      - INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - USE_PRIVATE_IP=${USE_PRIVATE_IP:-false}
+      
+      # GCP Authentication
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      
+      # JWT Configuration
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      
+      # Email Configuration
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_PASSWORD=${SENDER_PASSWORD}
+      
+      # Python Environment
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/auth/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Note: For CI/CD with service account, mount key file:
+# volumes:
+#   - ./gcp-key.json:/secrets/gcp-key.json:ro
+# And set: GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
+

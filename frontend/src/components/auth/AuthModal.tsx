@@ -1,12 +1,17 @@
+"use client";
+
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import SignUp from "./SignUp";
 import SignIn from "./SignIn";
+import { User } from "@/contexts/AuthContext";
 
 interface AuthModelProps {
   onClose: () => void;
 }
 
 const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
+  const router = useRouter();
   const [selectedRole, setSelectedRole] = useState("Patient");
   const [selectedAuthMode, setSelectedAuthMode] = useState<"SignUp" | "SignIn">(
     "SignUp"
@@ -19,13 +24,27 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
     { name:  "Pharmasist", img : "/pharmacist.svg"}
   ];
 
-  // FIX 1: Effect to lock body scroll when modal is open
+  // Effect to lock body scroll when modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "unset";
     };
   }, []);
+
+  // Handle successful sign-up - switch to sign in
+  const handleSignUpSuccess = () => {
+    setSelectedAuthMode("SignIn");
+  };
+
+  // Handle successful sign-in - close modal and redirect to dashboard
+  const handleSignInSuccess = (user: User) => {
+    // Close the modal
+    onClose();
+    
+    // Redirect to appropriate dashboard based on role
+    router.push(`/dashboard/${user.role}`);
+  };
 
   return (
     <div
@@ -107,7 +126,11 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
               </div>
             ))}
           </div>
-          {selectedAuthMode === "SignUp" ? <SignUp /> : <SignIn />}
+          {selectedAuthMode === "SignUp" ? (
+            <SignUp selectedRole={selectedRole} onSuccess={handleSignUpSuccess} />
+          ) : (
+            <SignIn onSuccess={handleSignInSuccess} />
+          )}
         </div>
       </div>
     </div>

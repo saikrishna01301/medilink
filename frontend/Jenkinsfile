@@ -1,122 +1,168 @@
+// ===================================
+// MediLink Frontend - Jenkins Pipeline
+// ===================================
+// Deploys frontend to GCP Compute Instance
+
 pipeline {
     agent any
+    
     environment {
-        DOCKER_REGISTRY_CREDENTIALS_ID = 'dockerhub-credentials'
-        DOCKERHUB_USERNAME = 'virtualviking98'
-        DOCKER_IMAGE_NAME = 'medihealth-frontend'
+        // Docker Configuration
+        IMAGE_NAME = 'medilink-frontend'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        GCP_PROJECT_ID = credentials('gcp-project-id')
+        GCP_REGION = 'us-central1'
+        INSTANCE_NAME = 'medilink-frontend-instance'
+        
+        // Backend API URL (your deployed backend)
+        NEXT_PUBLIC_API_URL = credentials('backend-api-url')
+        NODE_ENV = 'production'
+        
+        // GCP Service Account
+        GCP_KEY_FILE = credentials('gcp-service-account-key')
     }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 30, unit: 'MINUTES')
+    }
+    
     stages {
-        stage('Build & Test') {
-            agent {
-                 docker {
-                    image 'node:18-alpine' 
-                    args '-v /var/lib/jenkins/.npm:/.npm'
-                } 
-            }
+        stage('Checkout') {
             steps {
-                dir('frontend') {
-                    echo 'Installing dependencies inside the frontend directory...'
-                    sh 'npm cache clean --force' 
-                    sh 'rm -rf node_modules package-lock.json'
-                    // sh 'sudo chown -R 105:111 "/.npm"'
-                    // sh 'export npm_config_cache=/path/to/cache'
-                    // sh 'npm install'
-                    // echo 'sudo n'
-                }
-            }
-            post {
-                always {
-                    // Always notify in the specified channel
-                    slackSend channel: 'team2', 
-                            message: "Build *${currentBuild.fullDisplayName}* finished: ${currentBuild.currentResult}"
-                }
-                
-                failure {
-                    // Send an extra notification on failure
-                    slackSend channel: 'team2', 
-                            color: 'danger', // 'good', 'warning', or a hex color
-                            message: "Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
-                }
-                
-                success {
-                    // Send a notification on success
-                    slackSend channel: 'team2', 
-                            color: 'good',
-                            message: "Build *${currentBuild.fullDisplayName}* SUCCEEDED."
-                }
-            }
-        }
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    def imageTag = env.GIT_COMMIT.take(8)
-                    env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKER_IMAGE_NAME}:${imageTag}"
-                    echo "Building Docker image: ${env.FULL_IMAGE_NAME}"
-                    sh "docker build -f frontend/Dockerfile -t ${env.FULL_IMAGE_NAME} frontend/"
-                }
+                echo '📥 Checking out code...'
+                checkout scm
             }
             post {
                 always {
                     slackSend channel: 'team2', 
-                            message: "Docker Build *${currentBuild.fullDisplayName}* finished: ${currentBuild.currentResult}"
-                }
-                
-                failure {
-                    slackSend channel: 'team2', 
-                            color: 'danger', 
-                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
-                }
-                
-                success {
-                    slackSend channel: 'team2', 
-                            color: 'good',
-                            message: "Docker Build *${currentBuild.fullDisplayName}* SUCCEEDED."
+                            message: "Frontend Build *${currentBuild.fullDisplayName}* started"
                 }
             }
         }
         
-        stage('Push Docker Image') {
+        stage('Build Docker Image') {
             steps {
-                echo "Logging in and pushing image to Docker Hub..."
-                withDockerRegistry([url: 'https://index.docker.io/v1/', credentialsId: DOCKER_REGISTRY_CREDENTIALS_ID]) {
-                    sh "docker push ${env.FULL_IMAGE_NAME}"
+                echo '🐳 Building Docker image...'
+                dir('frontend') {
+                    script {
+                        sh """
+                            docker build \
+                                --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+                                -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                        """
+                    }
                 }
-            }
-        }
-        stage('Deploy') {
-            steps {
-                echo "Deploying locally built container..."
-                sh """
-                    # ✅ Create the network if it doesn't already exist
-                    docker network create medihealth-net || true
-                    
-                    docker stop ${DOCKER_IMAGE_NAME} || true
-                    docker rm ${DOCKER_IMAGE_NAME} || true
-                    docker run -d --name ${DOCKER_IMAGE_NAME} --network medihealth-net -p 80:3000 ${env.FULL_IMAGE_NAME}
-                """
             }
             post {
-                always {
-                    slackSend channel: 'team2', 
-                            message: "Docker Build *${currentBuild.fullDisplayName}* remote pushed: ${currentBuild.currentResult}"
-                }
-                
-                failure {
-                    slackSend channel: 'team2', 
-                            color: 'danger', 
-                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED: ${currentBuild.currentResult}"
-                }
-                
                 success {
                     slackSend channel: 'team2', 
                             color: 'good',
-                            message: "Docker Build *${currentBuild.fullDisplayName}* remote image pushed and deployed."
+                            message: "Docker Build *${currentBuild.fullDisplayName}* SUCCEEDED"
+                }
+                failure {
+                    slackSend channel: 'team2', 
+                            color: 'danger',
+                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED"
+                }
+            }
+        }
+        
+        stage('Push to GCP Container Registry') {
+            steps {
+                echo '📤 Pushing image to GCR...'
+                script {
+                    sh """
+                        # Authenticate with GCP
+                        echo '${GCP_KEY_FILE}' > gcp-key.json
+                        gcloud auth activate-service-account --key-file=gcp-key.json
+                        gcloud config set project ${GCP_PROJECT_ID}
+                        
+                        # Configure Docker for GCR
+                        gcloud auth configure-docker
+                        
+                        # Tag and push image
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
+                        docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
+                    """
+                }
+            }
+            post {
+                success {
+                    slackSend channel: 'team2', 
+                            color: 'good',
+                            message: "Image pushed to GCR: gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+        
+        stage('Deploy to GCP Instance') {
+            steps {
+                echo '🚀 Deploying to GCP instance...'
+                script {
+                    sh """
+                        # Create or update compute instance
+                        gcloud compute instances update-container ${INSTANCE_NAME} \
+                            --zone=${GCP_REGION}-a \
+                            --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
+                            --container-env=NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL},NODE_ENV=${NODE_ENV} \
+                            || gcloud compute instances create-with-container ${INSTANCE_NAME} \
+                                --zone=${GCP_REGION}-a \
+                                --machine-type=e2-medium \
+                                --tags=http-server,https-server \
+                                --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
+                                --container-env=NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL},NODE_ENV=${NODE_ENV}
+                    """
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🏥 Running health check...'
+                script {
+                    sh """
+                        # Get instance external IP
+                        INSTANCE_IP=\$(gcloud compute instances describe ${INSTANCE_NAME} \
+                            --zone=${GCP_REGION}-a \
+                            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+                        
+                        echo "Frontend deployed at: http://\${INSTANCE_IP}:3000"
+                        
+                        # Wait for service to start
+                        sleep 30
+                        
+                        # Health check
+                        curl -f http://\${INSTANCE_IP}:3000 || exit 1
+                        echo "✅ Frontend is healthy!"
+                    """
                 }
             }
         }
     }
+    
     post {
-        always {
+        success {
+            echo '✅ Frontend deployment successful!'
+            slackSend channel: 'team2', 
+                    color: 'good',
+                    message: "Frontend Deployment *${currentBuild.fullDisplayName}* SUCCEEDED ✅"
+        }
+        failure {
+            echo '❌ Frontend deployment failed!'
+            slackSend channel: 'team2', 
+                    color: 'danger',
+                    message: "Frontend Deployment *${currentBuild.fullDisplayName}* FAILED ❌"
+        }
+        cleanup {
+            // Clean up credentials
+            sh 'rm -f gcp-key.json'
+            // Clean up old images
+            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+            // Clean workspace
             cleanWs()
         }
     }
