@@ -4,19 +4,17 @@ from db import Base
 from core import config
 import asyncpg
 import asyncio
+from google.cloud.sql.connector import Connector
 
-# Only import connector if using Cloud SQL
-if config.USE_CLOUD_SQL:
-    from google.cloud.sql.connector import Connector
-    # Global connector instance
-    connector: Connector = None
-    connector_loop = None
+# Global connector instance
+connector: Connector = None
+connector_loop = None
 
 
 async def init_connector():
     """Initialize the Cloud SQL connector. Must be called during startup."""
     global connector, connector_loop
-    if config.USE_CLOUD_SQL and connector is None:
+    if connector is None:
         # Get the current event loop and store it
         connector_loop = asyncio.get_running_loop()
         # Initialize connector with the explicit loop
@@ -52,19 +50,13 @@ async def getconn() -> asyncpg.Connection:
     return conn
 
 
-# Create engine based on configuration
-if config.USE_CLOUD_SQL:
-    # Use Cloud SQL Connector
-    engine = create_async_engine(
-        "postgresql+asyncpg://",
-        async_creator=getconn,
-        poolclass=NullPool,  # Cloud SQL Connector handles connection pooling
-        echo=True,
-    )
-else:
-    # Use direct connection (for local development)
-    DB_URL = config.DATABASE_URL
-    engine = create_async_engine(DB_URL, echo=True)
+# Create engine using Cloud SQL Connector
+engine = create_async_engine(
+    "postgresql+asyncpg://",
+    async_creator=getconn,
+    poolclass=NullPool,  # Cloud SQL Connector handles connection pooling
+    echo=True,
+)
 
 sessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -85,7 +77,7 @@ async def init_db():
 async def close_connector():
     """Close the Cloud SQL connector on application shutdown."""
     global connector, connector_loop
-    if config.USE_CLOUD_SQL and connector is not None:
+    if connector is not None:
         try:
             await connector.close_async()
         except Exception as e:
