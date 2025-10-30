@@ -1,5 +1,6 @@
-// API Base URL - update this based on your backend configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// API Base URL
+// Use relative path so calls go through Next.js rewrite: /api -> backend origin
+const API_BASE_URL = "/api";
 
 // API Response types
 export interface SignUpRequest {
