@@ -1,6 +1,9 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import React from "react"; // Added React import
 import { verifyOtpApi } from "../../services/auth.services";
+import { useRouter } from "next/navigation";
 
 interface VerifyOtpModelProps {
   onClose: () => void;
@@ -20,6 +23,8 @@ const VerifyOtpModel: React.FC<VerifyOtpModelProps> = ({
   const [otpCode, setOtpCode] = useState("");
   const [timeLeft, setTimeLeft] = useState(RESEND_TIMEOUT_SECONDS);
   const [isResending, setIsResending] = useState(false);
+
+  const router = useRouter();
 
   // Timer Effect
   useEffect(() => {
@@ -45,16 +50,19 @@ const VerifyOtpModel: React.FC<VerifyOtpModelProps> = ({
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Verifying OTP:", otpCode);
-    // TODO: Add API call to /otp/verify here
-
+    // Add API call to /otp/verify here
+    console.log(userData, otpCode);
     const response = await verifyOtpApi(
       userData.user_id,
       userData.identifier,
       otpCode
     );
+    console.log("OTP Verification Successful:", response.data);
+    await router.push("/dashboard");
+    // //api call to user details
+    // const detailsResponse = await userDetailsApi();
 
-    return console.log("OTP Verification Response:", response);
+    // return console.log("Current User:", detailsResponse.data);
   };
 
   const handleResend = async () => {
@@ -119,7 +127,7 @@ const VerifyOtpModel: React.FC<VerifyOtpModelProps> = ({
         {/* RESEND CODE BUTTON AND TIMER */}
         <div className="flex justify-between items-center mt-4">
           <button
-            onClick={handleResend}
+            onClick={handleVerify}
             disabled={isResendDisabled}
             className={`text-sm hover:text-black transition-colors ${
               isResendDisabled

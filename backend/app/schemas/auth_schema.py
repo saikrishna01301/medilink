@@ -10,7 +10,6 @@ class UserLogin(BaseModel):
 
 
 class OTPVerification(BaseModel):
-    user_id: int = Field(..., description="Unique ID of the user.")
     identifier: str = Field(..., description="Email or phone used for login.")
     otp_code: str = Field(
         ...,
@@ -18,3 +17,4 @@ class OTPVerification(BaseModel):
         max_length=6,
         description="The 6-digit code sent to the user.",
     )
+    user_id: int = Field(..., description="Unique ID of the user.")

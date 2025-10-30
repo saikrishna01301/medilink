@@ -16,10 +16,19 @@ export const verifyOtpApi = async (
   identifier: string,
   otp_code: string
 ) => {
-  const response = await API.post("/auth/verify-account", {
-    user_id,
-    identifier,
-    otp_code,
-  });
+  const response = await API.post(
+    "/auth/verify-account",
+    {
+      user_id,
+      identifier,
+      otp_code,
+    },
+    { headers: { "Content-Type": "application/json" } }
+  );
   return response;
 };
+
+// export const userDetailsApi = async () => {
+//   const response = await API.get("/auth/user/details");
+//   return response;
+// };

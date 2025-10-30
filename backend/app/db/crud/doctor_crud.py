@@ -1,6 +1,6 @@
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import User, DBSession, OTPStore
+from app.db import User
 
 
 async def search_patients(query: str, session: AsyncSession):

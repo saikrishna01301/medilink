@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from jose import jwt
+from jose import jwt, JWTError
 from passlib.hash import bcrypt
 import secrets
 import asyncio
@@ -54,3 +54,37 @@ async def create_tokens(user_id: int, role: str):
     refresh_exp = datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE_DAYS)
 
     return access_token, refresh_token, refresh_exp
+
+
+# decode token
+
+
+# async def decode_token(token: str):
+#     """Decodes the JWT and raises HTTPException if invalid or expired."""
+#     try:
+#         # Replace 'HS256' with your algorithm
+#         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+#         user_id: int = payload.get("sub")  # 'sub' is standard for user ID
+
+#         if user_id is None:
+#             raise HTTPException(
+#                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
+#             )
+
+#         # You may add token expiry check here if not handled by jwt.decode
+
+#         return user_id
+
+#     except JWTError:
+#         # This catches invalid signatures, malformed tokens, and sometimes expiration
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Could not validate credentials",
+#         )
+
+#     # You should also handle ExpiredSignatureError specifically if needed
+#     except Exception as e:
+#         # General catch-all for robustness
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token error: {e}"
+#         )
