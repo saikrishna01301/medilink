@@ -36,20 +36,58 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
     setLoading(true);
 
     try {
+      // 2FA DISABLED: Login now directly returns tokens
       const response = await authAPI.login({
         email_or_phone: email,
         password: password,
       });
 
-      // Store login data for OTP verification
-      setLoginData({
-        userId: response.user_id,
-        identifier: response.identifier,
-      });
-
-      // Show OTP input
-      setShowOtpInput(true);
+      // Success - tokens are stored in cookies
       setError(null);
+
+      // Fetch current user data
+      try {
+        const userData = await authAPI.getCurrentUser();
+        
+        // Map role to include pharmacist
+        let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
+        const userRole = userData.role.toLowerCase();
+        if (userRole === "doctor") role = "doctor";
+        else if (userRole === "insurer") role = "insurer";
+        else if (userRole === "patient") role = "patient";
+        else if (userRole === "pharmacist" || userRole === "pharmasist") role = "pharmacist";
+        
+        const user: User = {
+          id: userData.id,
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: userData.email,
+          phone: userData.phone,
+          role: role,
+        };
+        
+        // Store user in context
+        setUser(user);
+
+        // Call success callback if provided
+        if (onSuccess) {
+          onSuccess(user);
+        }
+      } catch (fetchError) {
+        console.error("Failed to fetch user data:", fetchError);
+        // Even if fetch fails, still call onSuccess since login was successful
+        if (onSuccess) {
+          const user: User = {
+            id: response.user_id,
+            first_name: "",
+            last_name: "",
+            email: email,
+            phone: "",
+            role: "patient",
+          };
+          onSuccess(user);
+        }
+      }
     } catch (err) {
       if (err instanceof APIError) {
         setError(err.detail);

@@ -29,8 +29,8 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
+  msg: string;
   user_id: number;
-  identifier: string;
 }
 
 export interface OTPVerificationRequest {

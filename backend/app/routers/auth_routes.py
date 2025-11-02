@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.crud import auth_crud as crud
 from schemas import CreateUser, UserLogin, ReadUser, OTPVerification
-from services import send_otp_email, create_tokens, hash_password, verify_password, verify_access_token
-from datetime import datetime, timedelta
-import random, json
+from services import create_tokens, hash_password, verify_password, verify_access_token
+from datetime import datetime
+import json
 
 router = APIRouter()
 
@@ -60,29 +60,42 @@ async def user_login(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
 
-    # generate otp
-    def generate_otp() -> str:
-        return "".join(random.choices("0123456789", k=6))
-
-    otp_code = generate_otp()
-    otp_expires = datetime.utcnow() + timedelta(minutes=5)
-
-    # store otp in db
-    await crud.store_otp(
-        validated_user.id, otp_code, otp_expires, validated_user.email, session
+    # 2FA DISABLED: Create tokens directly after password verification
+    # create tokens
+    access_token, refresh_token, refresh_exp = await create_tokens(
+        validated_user.id, validated_user.role
+    )
+    # hash refresh_token
+    hashed_refresh_token = await hash_password(refresh_token)
+    # store session in db
+    await crud.create_session(
+        validated_user.id, hashed_refresh_token, refresh_exp, session
     )
 
-    # sending otp to email
-    try:
-        await send_otp_email(user.email_or_phone, otp_code)
-    except Exception as e:
-        print("Error sending OTP:", e)
-        raise HTTPException(status_code=500, detail="Failed to send OTP")
+    # Access Token (short-lived)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="Lax",
+        max_age=15 * 60,
+    )
+
+    # Refresh Token (long-lived)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="Lax",
+        expires=refresh_exp,  # Uses the calculated datetime for long expiry
+    )
 
     return Response(
-        status_code=status.HTTP_202_ACCEPTED,
+        status_code=status.HTTP_200_OK,
         content=json.dumps(
-            {"user_id": validated_user.id, "identifier": user.email_or_phone}
+            {"msg": "Login successful", "user_id": validated_user.id}
         ),
         media_type="application/json",
     )
@@ -176,7 +189,7 @@ async def refresh_access_token(
     # --- Token Renewal ---
 
     # 5. Fetch the user associated with the session
-    user = await crud.current_user(db_session.user_id, session)
+    user = await crud.get_user_by_id(db_session.user_id, session)
     if not user:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "User associated with session not found."
