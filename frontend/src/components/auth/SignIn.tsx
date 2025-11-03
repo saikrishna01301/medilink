@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { authAPI, APIError } from "@/services/api";
+import { authAPI, APIError, CurrentUserResponse } from "@/services/api";
 import { useAuth, User } from "@/contexts/AuthContext";
 
 interface SignInProps {
@@ -45,48 +45,56 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
       // Success - tokens are stored in cookies
       setError(null);
 
-      // Fetch current user data
-      try {
-        const userData = await authAPI.getCurrentUser();
-        
-        // Map role to include pharmacist
-        let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
-        const userRole = userData.role.toLowerCase();
-        if (userRole === "doctor") role = "doctor";
-        else if (userRole === "insurer") role = "insurer";
-        else if (userRole === "patient") role = "patient";
-        else if (userRole === "pharmacist" || userRole === "pharmasist") role = "pharmacist";
-        
-        const user: User = {
-          id: userData.id,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          email: userData.email,
-          phone: userData.phone,
-          role: role,
-        };
-        
-        // Store user in context
-        setUser(user);
+      // Use user data from login response if available, otherwise fetch it
+      let userData: CurrentUserResponse;
+      if (response.user) {
+        // User data included in login response
+        userData = response.user;
+      } else {
+        // Fallback: fetch user data if not in response
+        try {
+          userData = await authAPI.getCurrentUser();
+        } catch (fetchError) {
+          console.error("Failed to fetch user data:", fetchError);
+          // Even if fetch fails, still proceed with login
+          if (onSuccess) {
+            const user: User = {
+              id: response.user_id,
+              first_name: "",
+              last_name: "",
+              email: email,
+              phone: "",
+              role: "patient",
+            };
+            onSuccess(user);
+          }
+          return;
+        }
+      }
+      
+      // Map role to include pharmacist
+      let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
+      const userRole = userData.role.toLowerCase();
+      if (userRole === "doctor") role = "doctor";
+      else if (userRole === "insurer") role = "insurer";
+      else if (userRole === "patient") role = "patient";
+      else if (userRole === "pharmacist" || userRole === "pharmasist") role = "pharmacist";
+      
+      const user: User = {
+        id: userData.id,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        email: userData.email,
+        phone: userData.phone,
+        role: role,
+      };
+      
+      // Store user in context
+      setUser(user);
 
-        // Call success callback if provided
-        if (onSuccess) {
-          onSuccess(user);
-        }
-      } catch (fetchError) {
-        console.error("Failed to fetch user data:", fetchError);
-        // Even if fetch fails, still call onSuccess since login was successful
-        if (onSuccess) {
-          const user: User = {
-            id: response.user_id,
-            first_name: "",
-            last_name: "",
-            email: email,
-            phone: "",
-            role: "patient",
-          };
-          onSuccess(user);
-        }
+      // Call success callback if provided
+      if (onSuccess) {
+        onSuccess(user);
       }
     } catch (err) {
       if (err instanceof APIError) {

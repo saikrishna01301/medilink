@@ -42,6 +42,20 @@ async def get_current_user(
 # API Endpoints
 @router.post("/signup", response_model=ReadUser)
 async def create_user(user: CreateUser, session: AsyncSession = Depends(get_session)):
+    # Check if user with email or phone already exists
+    existing_user = await crud.check_user_exists(user.email, user.phone, session)
+    if existing_user:
+        if existing_user.email == user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        if existing_user.phone == user.phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
+            )
+    
     hashed = await hash_password(user.password)
     user_data_dict = user.model_dump(exclude={"password"})
     return await crud.create_user(user_data_dict, hashed, session)
@@ -79,6 +93,7 @@ async def user_login(
         httponly=True,
         secure=False,
         samesite="Lax",
+        path="/",  # Set path to root so it works with rewrites
         max_age=15 * 60,
     )
 
@@ -89,14 +104,26 @@ async def user_login(
         httponly=True,
         secure=False,
         samesite="Lax",
+        path="/",  # Set path to root so it works with rewrites
         expires=refresh_exp,  # Uses the calculated datetime for long expiry
     )
 
+    # Return user data in response to avoid immediate getCurrentUser call
     return Response(
         status_code=status.HTTP_200_OK,
-        content=json.dumps(
-            {"msg": "Login successful", "user_id": validated_user.id}
-        ),
+        content=json.dumps({
+            "msg": "Login successful",
+            "user_id": validated_user.id,
+            "user": {
+                "id": validated_user.id,
+                "first_name": validated_user.first_name,
+                "last_name": validated_user.last_name,
+                "email": validated_user.email,
+                "phone": validated_user.phone,
+                "role": validated_user.role,
+                "accepted_terms": validated_user.accepted_terms,
+            }
+        }),
         media_type="application/json",
     )
 
@@ -135,6 +162,7 @@ async def verify_account(
         httponly=True,
         secure=False,
         samesite="Lax",
+        path="/",  # Set path to root so it works with rewrites
         max_age=15 * 60,
     )
 
@@ -145,11 +173,23 @@ async def verify_account(
         httponly=True,
         secure=False,
         samesite="Lax",
+        path="/",  # Set path to root so it works with rewrites
         expires=refresh_exp,  # Uses the calculated datetime for long expiry
     )
 
-    # 5. Return success message (tokens are in the headers, not the body)
-    return {"msg": f"OTP verification successful"}
+    # Return user data in response
+    return {
+        "msg": "OTP verification successful",
+        "user": {
+            "id": current_user_data.id,
+            "first_name": current_user_data.first_name,
+            "last_name": current_user_data.last_name,
+            "email": current_user_data.email,
+            "phone": current_user_data.phone,
+            "role": current_user_data.role,
+            "accepted_terms": current_user_data.accepted_terms,
+        }
+    }
 
 
 @router.post("/token/refresh")

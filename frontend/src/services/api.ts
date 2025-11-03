@@ -31,6 +31,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   msg: string;
   user_id: number;
+  user?: CurrentUserResponse;
 }
 
 export interface OTPVerificationRequest {
@@ -73,6 +74,7 @@ export const authAPI = {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
     });
 
@@ -91,6 +93,7 @@ export const authAPI = {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include", // Important: Include cookies for token storage
       body: JSON.stringify(data),
     });
 

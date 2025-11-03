@@ -4,6 +4,16 @@ from db import User, DBSession, OTPStore
 from datetime import datetime, timezone
 
 
+async def check_user_exists(email: str, phone: str, session: AsyncSession):
+    """Check if a user with the given email or phone already exists"""
+    existing_user = await session.scalar(
+        select(User).where(
+            (User.email == email) | (User.phone == phone)
+        )
+    )
+    return existing_user
+
+
 async def create_user(user_data_dict, hashed, session: AsyncSession):
     db_user = User(**user_data_dict, password_hash=hashed)
     session.add(db_user)
