@@ -9,7 +9,7 @@ export interface SignUpRequest {
   email: string;
   phone: string;
   password: string;
-  role: "doctor" | "patient" | "insurer";
+  role: "doctor" | "patient" | "insurer" | "pharmacist";
   accepted_terms: boolean;
 }
 
@@ -26,12 +26,27 @@ export interface SignUpResponse {
 export interface LoginRequest {
   email_or_phone: string;
   password: string;
+  role?: string; // Optional role selection for login
 }
 
 export interface LoginResponse {
   msg: string;
-  user_id: number;
+  user_id?: number;
   user?: CurrentUserResponse;
+  requires_action?: boolean;
+  action_type?: "patient_to_service_provider" | "service_provider_to_patient";
+  options?: {
+    option1: {
+      action: string;
+      label: string;
+      role?: string;
+    };
+    option2: {
+      action: string;
+      label: string;
+      role?: string;
+    };
+  };
 }
 
 export interface OTPVerificationRequest {
@@ -159,6 +174,28 @@ export const authAPI = {
       throw new APIError(
         response.status,
         error.detail || "Failed to fetch user data"
+      );
+    }
+
+    return response.json();
+  },
+
+  // Create patient account for existing service provider
+  createPatientAccount: async (data: LoginRequest): Promise<LoginResponse> => {
+    const response = await fetch(`${API_BASE_URL}/auth/create-patient-account`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include", // Important: Include cookies
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to create patient account"
       );
     }
 

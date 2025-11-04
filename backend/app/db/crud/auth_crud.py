@@ -14,6 +14,14 @@ async def check_user_exists(email: str, phone: str, session: AsyncSession):
     return existing_user
 
 
+async def check_user_by_email(email: str, session: AsyncSession):
+    """Check if a user with the given email exists"""
+    existing_user = await session.scalar(
+        select(User).where(User.email == email)
+    )
+    return existing_user
+
+
 async def create_user(user_data_dict, hashed, session: AsyncSession):
     db_user = User(**user_data_dict, password_hash=hashed)
     session.add(db_user)
@@ -101,6 +109,17 @@ async def current_user(email: str, session: AsyncSession):
 async def get_user_by_id(user_id: int, session: AsyncSession):
     user = await session.scalar(select(User).where(User.id == user_id))
     return user
+
+
+async def update_user_patient_status(user_id: int, is_patient: bool, session: AsyncSession):
+    """Update user's is_patient status"""
+    user = await session.scalar(select(User).where(User.id == user_id))
+    if user:
+        user.is_patient = is_patient
+        await session.commit()
+        await session.refresh(user)
+        return user
+    return None
 
 
 async def active_sessions(hashed_incoming_token, session: AsyncSession):

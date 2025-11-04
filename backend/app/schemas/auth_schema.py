@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr
+from typing import Optional
 
 
 # user auth login model
@@ -7,6 +8,7 @@ class UserLogin(BaseModel):
     password: str = Field(
         ..., min_length=8, max_length=72, description="account password"
     )
+    role: Optional[str] = Field(None, description="Selected role for login: 'patient', 'doctor', 'pharmacist', or 'insurer'")
 
 
 class OTPVerification(BaseModel):

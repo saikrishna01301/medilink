@@ -1,25 +1,40 @@
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, func
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, func, Enum as SQLEnum
 from datetime import datetime
 from db.base import Base
+import enum
+
+
+# Enum for user roles matching database ENUM type
+class UserRoleEnum(str, enum.Enum):
+    doctor = "doctor"
+    pharmacist = "pharmacist"
+    insurer = "insurer"
 
 
 # user table
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    first_name: Mapped[str] = mapped_column(String, nullable=False)
-    last_name: Mapped[str] = mapped_column(String, nullable=False)
+    # Map Python attribute 'id' to database column 'user_id'
+    id: Mapped[int] = mapped_column("user_id", primary_key=True, index=True)
+    first_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    middle_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     # Unique constraints required for login/signup validation
-    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    phone: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)  # No unique constraint - same phone can be used for multiple accounts
+    emergency_contact: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # Security field (stores the HASHED password)
-    password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False)
-    accepted_terms: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # is_patient: True for patient accounts, False for service provider accounts
+    is_patient: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # role: NULL for patient accounts, 'doctor'/'pharmacist'/'insurer' for service providers
+    role: Mapped[Optional[str]] = mapped_column(SQLEnum(UserRoleEnum, name="user_role"), nullable=True)
+    accepted_terms: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, server_default=func.now())
 
     # Link to dbsessions
     sessions: Mapped[List["DBSession"]] = relationship(back_populates="user")

@@ -129,7 +129,11 @@ const AuthModel: React.FC<AuthModelProps> = ({ onClose }) => {
           {selectedAuthMode === "SignUp" ? (
             <SignUp selectedRole={selectedRole} onSuccess={handleSignUpSuccess} />
           ) : (
-            <SignIn onSuccess={handleSignInSuccess} />
+            <SignIn 
+              selectedRole={selectedRole} 
+              onSuccess={handleSignInSuccess}
+              onSwitchToSignUp={() => setSelectedAuthMode("SignUp")}
+            />
           )}
         </div>
       </div>

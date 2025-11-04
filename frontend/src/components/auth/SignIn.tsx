@@ -3,10 +3,12 @@ import { authAPI, APIError, CurrentUserResponse } from "@/services/api";
 import { useAuth, User } from "@/contexts/AuthContext";
 
 interface SignInProps {
+  selectedRole?: string;
   onSuccess?: (user: User) => void;
+  onSwitchToSignUp?: () => void;
 }
 
-const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
+const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSignUp }) => {
   const { setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +19,14 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
   const [loginData, setLoginData] = useState<{
     userId: number;
     identifier: string;
+  } | null>(null);
+  const [requiresAction, setRequiresAction] = useState<{
+    action_type: string;
+    options: {
+      option1: { action: string; label: string; role?: string };
+      option2: { action: string; label: string; role?: string };
+    };
+    message: string;
   } | null>(null);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -36,11 +46,33 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
     setLoading(true);
 
     try {
+      // Map selected role to backend format (normalize to lowercase)
+      let roleForLogin: string | undefined = undefined;
+      if (selectedRole) {
+        const roleLower = selectedRole.toLowerCase();
+        if (roleLower === "doctor" || roleLower === "patient" || roleLower === "insurer" || 
+            roleLower === "pharmacist" || roleLower === "pharmasist") {
+          roleForLogin = roleLower === "pharmasist" ? "pharmacist" : roleLower;
+        }
+      }
+
       // 2FA DISABLED: Login now directly returns tokens
       const response = await authAPI.login({
         email_or_phone: email,
         password: password,
+        role: roleForLogin,
       });
+
+      // Check if response requires action (role conflict)
+      if (response.requires_action && response.options) {
+        setRequiresAction({
+          action_type: response.action_type || "",
+          options: response.options,
+          message: response.msg || "Action required",
+        });
+        setError(null);
+        return;
+      }
 
       // Success - tokens are stored in cookies
       setError(null);
@@ -57,7 +89,7 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
         } catch (fetchError) {
           console.error("Failed to fetch user data:", fetchError);
           // Even if fetch fails, still proceed with login
-          if (onSuccess) {
+          if (onSuccess && response.user_id) {
             const user: User = {
               id: response.user_id,
               first_name: "",
@@ -197,6 +229,99 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
     setError(null);
   };
 
+  const handleActionOption = async (action: string, role?: string) => {
+    if (action === "go_to_patient_dashboard") {
+      // Login as patient and redirect
+      try {
+        const response = await authAPI.login({
+          email_or_phone: email,
+          password: password,
+          role: "patient",
+        });
+        if (response.user && onSuccess) {
+          const user: User = {
+            id: response.user.id,
+            first_name: response.user.first_name,
+            last_name: response.user.last_name,
+            email: response.user.email,
+            phone: response.user.phone,
+            role: "patient",
+          };
+          setUser(user);
+          onSuccess(user);
+        }
+      } catch (err) {
+        if (err instanceof APIError) {
+          setError(err.detail);
+        }
+      }
+    } else if (action === "continue_with_service_provider" && role) {
+      // Login with existing service provider role
+      try {
+        const response = await authAPI.login({
+          email_or_phone: email,
+          password: password,
+          role: role,
+        });
+        if (response.user && onSuccess) {
+          let userRole: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
+          const userRoleLower = response.user.role.toLowerCase();
+          if (userRoleLower === "doctor") userRole = "doctor";
+          else if (userRoleLower === "insurer") userRole = "insurer";
+          else if (userRoleLower === "patient") userRole = "patient";
+          else if (userRoleLower === "pharmacist") userRole = "pharmacist";
+          
+          const user: User = {
+            id: response.user.id,
+            first_name: response.user.first_name,
+            last_name: response.user.last_name,
+            email: response.user.email,
+            phone: response.user.phone,
+            role: userRole,
+          };
+          setUser(user);
+          onSuccess(user);
+        }
+      } catch (err) {
+        if (err instanceof APIError) {
+          setError(err.detail);
+        }
+      }
+    } else if (action === "create_patient_account") {
+      // Create patient account for existing service provider
+      try {
+        const response = await authAPI.createPatientAccount({
+          email_or_phone: email,
+          password: password,
+        });
+        if (response.user && onSuccess) {
+          const user: User = {
+            id: response.user.id,
+            first_name: response.user.first_name,
+            last_name: response.user.last_name,
+            email: response.user.email,
+            phone: response.user.phone,
+            role: "patient",
+          };
+          setUser(user);
+          setRequiresAction(null);
+          onSuccess(user);
+        }
+      } catch (err) {
+        if (err instanceof APIError) {
+          setError(err.detail);
+        }
+      }
+    } else if (action === "create_service_provider_account") {
+      // Switch to signup mode for service provider account creation
+      setRequiresAction(null);
+      setError(null);
+      if (onSwitchToSignUp) {
+        onSwitchToSignUp();
+      }
+    }
+  };
+
   return (
     <div className="flex justify-center text-[#111] items-center h-full w-3/5">
       {!showOtpInput ? (
@@ -209,6 +334,35 @@ const SignIn: React.FC<SignInProps> = ({ onSuccess }) => {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Requires Action Dialog */}
+          {requiresAction && (
+            <div className="bg-blue-50 border border-blue-400 text-blue-800 px-4 py-3 rounded-lg">
+              <p className="font-semibold mb-3">{requiresAction.message}</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleActionOption(
+                    requiresAction.options.option1.action,
+                    requiresAction.options.option1.role
+                  )}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                >
+                  {requiresAction.options.option1.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleActionOption(
+                    requiresAction.options.option2.action,
+                    requiresAction.options.option2.role
+                  )}
+                  className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
+                >
+                  {requiresAction.options.option2.label}
+                </button>
+              </div>
             </div>
           )}
 

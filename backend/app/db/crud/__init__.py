@@ -7,6 +7,7 @@ from .auth_crud import (
     current_user,
     active_sessions,
     delete_session,
+    update_user_patient_status,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "current_user",
     "active_sessions",
     "delete_session",
+    "update_user_patient_status",
 ]

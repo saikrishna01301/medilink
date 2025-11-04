@@ -68,11 +68,13 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
     }
 
     // Map the selected role to backend format
-    let role: "doctor" | "patient" | "insurer" = "patient";
-    if (selectedRole.toLowerCase() === "doctor") role = "doctor";
-    else if (selectedRole.toLowerCase() === "insurer") role = "insurer";
-    else if (selectedRole.toLowerCase() === "patient") role = "patient";
-    // Default to patient for "Pharmasist" or any other role
+    let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
+    const roleLower = selectedRole.toLowerCase();
+    if (roleLower === "doctor") role = "doctor";
+    else if (roleLower === "insurer") role = "insurer";
+    else if (roleLower === "patient") role = "patient";
+    else if (roleLower === "pharmacist" || roleLower === "pharmasist") role = "pharmacist";
+    // Default to patient for any other role
 
     setLoading(true);
 
