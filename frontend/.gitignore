@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# CI/CD reports and backups
+health-check-report.json
+performance-report.json
+security-audit-report.json
+build-summary.txt
+backups/
+*.tar.gz
+*.info

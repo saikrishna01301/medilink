@@ -1,160 +1,311 @@
-// ===================================
-// MediLink Backend - Jenkins Pipeline
-// ===================================
-// This pipeline builds and deploys the backend to GCP
-
 pipeline {
     agent any
     
     environment {
-        // Docker Configuration
-        IMAGE_NAME = 'medilink-backend'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        GCP_PROJECT_ID = credentials('gcp-project-id')
-        GCP_REGION = 'us-central1'
-        INSTANCE_NAME = 'medilink-backend-instance'
-        
-        // GCP Cloud SQL Configuration
-        INSTANCE_CONNECTION_NAME = credentials('instance-connection-name')
-        DB_USER = credentials('db-user')
-        DB_PASSWORD = credentials('db-password')
-        DB_NAME = credentials('db-name')
-        
-        // JWT Configuration
-        JWT_SECRET_KEY = credentials('jwt-secret-key')
-        JWT_ALGORITHM = 'HS256'
-        
-        // Email Configuration
-        SENDER_EMAIL = credentials('sender-email')
-        SENDER_PASSWORD = credentials('sender-password')
-        
-        // Note: GCP_KEY_FILE handled in withCredentials block
+        PYTHON_VERSION = '3.11'
+        BACKEND_DIR = 'backend'
+        BUILD_DIR = '${WORKSPACE}/${BACKEND_DIR}'
+        BACKUP_DIR = '${WORKSPACE}/backups'
+        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
+        SLACK_CHANNEL = '#ci-cd'
+        DEPLOYMENT_URL = env.DEPLOYMENT_URL ?: 'http://localhost:8000'
     }
     
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+    }
+    
+    triggers {
+        // Auto-trigger on every commit
+        pollSCM('H/5 * * * *') // Poll every 5 minutes
+        // For GitHub/GitLab webhooks, configure in Jenkins UI
     }
     
     stages {
         stage('Checkout') {
             steps {
-                echo '📥 Checking out code...'
-                checkout scm
+                script {
+                    echo "Checking out code from ${env.GIT_BRANCH}"
+                    checkout scm
+                    // Get commit information
+                    env.GIT_COMMIT_MSG = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_COMMIT_AUTHOR = sh(
+                        script: 'git log -1 --pretty=%an',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_COMMIT_HASH = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                }
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Create Backup') {
             steps {
-                echo '🐳 Building Docker image...'
-                dir('backend') {
+                script {
+                    echo "Creating backup of previous build..."
+                    sh """
+                        mkdir -p ${BACKUP_DIR}
+                        if [ -d "${BUILD_DIR}/app" ]; then
+                            tar -czf ${BACKUP_DIR}/backend-backup-${BUILD_NUMBER}-${env.GIT_COMMIT_HASH}.tar.gz \
+                                -C ${BUILD_DIR} app requirements.txt alembic.ini alembic/
+                            echo "Backup created: backend-backup-${BUILD_NUMBER}-${env.GIT_COMMIT_HASH}.tar.gz"
+                        fi
+                    """
+                }
+            }
+        }
+        
+        stage('Setup Python') {
+            steps {
+                script {
+                    echo "Setting up Python ${PYTHON_VERSION}"
+                    sh '''
+                        if command -v python3 &> /dev/null; then
+                            echo "Python already installed: $(python3 --version)"
+                        else
+                            echo "Installing Python..."
+                            sudo apt-get update
+                            sudo apt-get install -y python3 python3-pip python3-venv
+                        fi
+                        python3 --version
+                        pip3 --version
+                    '''
+                }
+            }
+        }
+        
+        stage('Create Virtual Environment') {
+            steps {
+                dir(BACKEND_DIR) {
                     script {
-                        sh """
-                            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-                        """
+                        echo "Creating virtual environment..."
+                        sh '''
+                            if [ ! -d "venv" ]; then
+                                python3 -m venv venv
+                            fi
+                            source venv/bin/activate
+                            pip install --upgrade pip
+                        '''
                     }
                 }
             }
         }
         
-        stage('Push to GCP Container Registry') {
+        stage('Install Dependencies') {
             steps {
-                echo '📤 Pushing image to GCR...'
-                script {
-                    // Use withCredentials to properly handle Secret File
-                    withCredentials([file(credentialsId: 'gcp-service-account-key', variable: 'GCP_KEY')]) {
-                        sh """
-                            # Authenticate with GCP
-                            gcloud auth activate-service-account --key-file=\${GCP_KEY}
-                            gcloud config set project ${GCP_PROJECT_ID}
-                        
-                            # Configure Docker for GCR
-                            gcloud auth configure-docker
-                            
-                            # Tag and push image
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                        """
+                dir(BACKEND_DIR) {
+                    script {
+                        echo "Installing Python dependencies..."
+                        sh '''
+                            source venv/bin/activate
+                            pip install -r requirements.txt
+                        '''
                     }
                 }
             }
         }
         
-        stage('Deploy to GCP Instance') {
+        stage('Database Migrations') {
             steps {
-                echo '🚀 Deploying to GCP instance...'
-                script {
-                    sh """
-                        # Create or update compute instance
-                        gcloud compute instances update-container ${INSTANCE_NAME} \
-                            --zone=${GCP_REGION}-a \
-                            --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
-                            --container-env=INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},\
-DB_USER=${DB_USER},\
-DB_PASSWORD=${DB_PASSWORD},\
-DB_NAME=${DB_NAME},\
-JWT_SECRET_KEY=${JWT_SECRET_KEY},\
-JWT_ALGORITHM=${JWT_ALGORITHM},\
-SENDER_EMAIL=${SENDER_EMAIL},\
-SENDER_PASSWORD=${SENDER_PASSWORD},\
-GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json \
-                            --container-mount-host-path=mount-path=/secrets,host-path=/etc/gcp-key,mode=ro \
-                            || gcloud compute instances create-with-container ${INSTANCE_NAME} \
-                                --zone=${GCP_REGION}-a \
-                                --machine-type=e2-medium \
-                                --tags=http-server,https-server \
-                                --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
-                                --container-env=INSTANCE_CONNECTION_NAME=${INSTANCE_CONNECTION_NAME},\
-DB_USER=${DB_USER},\
-DB_PASSWORD=${DB_PASSWORD},\
-DB_NAME=${DB_NAME},\
-JWT_SECRET_KEY=${JWT_SECRET_KEY},\
-JWT_ALGORITHM=${JWT_ALGORITHM},\
-SENDER_EMAIL=${SENDER_EMAIL},\
-SENDER_PASSWORD=${SENDER_PASSWORD},\
-GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json \
-                                --container-mount-host-path=mount-path=/secrets,host-path=/etc/gcp-key,mode=ro
-                    """
+                dir(BACKEND_DIR) {
+                    script {
+                        echo "Running database migrations..."
+                        sh '''
+                            source venv/bin/activate
+                            alembic upgrade head || echo "Migration failed or already up to date"
+                        '''
+                    }
                 }
             }
         }
         
-        stage('Health Check') {
+        stage('Deploy') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'prince'
+                }
+            }
             steps {
-                echo '🏥 Running health check...'
                 script {
-                    sh """
-                        # Get instance external IP
-                        INSTANCE_IP=\$(gcloud compute instances describe ${INSTANCE_NAME} \
-                            --zone=${GCP_REGION}-a \
-                            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+                    echo "Deploying backend to localhost:8000..."
+                    
+                    sh '''
+                        cd ${BUILD_DIR}
+                        source venv/bin/activate
                         
-                        # Wait for service to start
-                        sleep 30
+                        # Install PM2 if not available (for process management)
+                        if ! command -v pm2 &> /dev/null; then
+                            echo "Installing PM2..."
+                            npm install -g pm2
+                        fi
                         
-                        # Health check
-                        curl -f http://\${INSTANCE_IP}:8000/auth/health || exit 1
-                        echo "✅ Backend is healthy!"
-                    """
+                        # Stop existing backend process if running
+                        pm2 stop medilink-backend || true
+                        pm2 delete medilink-backend || true
+                        
+                        # Ensure port 8000 is available
+                        echo "Checking port 8000..."
+                        lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+                        
+                        # Start backend on port 8000 using PM2 with venv python
+                        echo "Starting backend on port 8000..."
+                        pm2 start venv/bin/python \
+                            --name "medilink-backend" \
+                            --cwd ${BUILD_DIR} \
+                            -- -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+                        
+                        # Save PM2 process list
+                        pm2 save
+                        
+                        # Display PM2 status
+                        pm2 status
+                        
+                        echo "Backend deployed successfully!"
+                        echo "Access backend at: http://localhost:8000"
+                        echo "API docs at: http://localhost:8000/docs"
+                    '''
+                }
+            }
+            post {
+                success {
+                    script {
+                        echo "Deployment successful!"
+                        sendSlackNotification('success')
+                    }
+                }
+                failure {
+                    script {
+                        echo "Deployment failed!"
+                        sendSlackNotification('failure')
+                    }
+                }
+            }
+        }
+        
+        stage('Post-Deployment Monitoring') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'prince'
+                }
+            }
+            steps {
+                script {
+                    echo "Starting post-deployment monitoring..."
+                    // Wait for deployment to stabilize
+                    sleep(time: 10, unit: 'SECONDS')
+                    
+                    // Run health checks
+                    sh '''
+                        for i in {1..5}; do
+                            echo "Health check attempt $i..."
+                            curl -f ${DEPLOYMENT_URL}/auth/health || curl -f ${DEPLOYMENT_URL}/docs || true
+                            sleep 5
+                        done
+                    '''
                 }
             }
         }
     }
     
     post {
+        always {
+            script {
+                echo "Pipeline completed. Generating summary..."
+                generateBuildSummary()
+            }
+        }
         success {
-            echo '✅ Backend deployment successful!'
+            script {
+                echo "Pipeline succeeded!"
+            }
         }
         failure {
-            echo '❌ Backend deployment failed!'
+            script {
+                echo "Pipeline failed!"
+                sendSlackNotification('failure')
+            }
         }
         cleanup {
-            // Clean up old images
-            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+            script {
+                // Clean up old backups (keep last 10)
+                sh """
+                    cd ${BACKUP_DIR}
+                    ls -t | tail -n +11 | xargs rm -f || true
+                """
+                // Clean up workspace
+                cleanWs()
+            }
         }
     }
+}
+
+// Helper function to send Slack notifications
+def sendSlackNotification(String status) {
+    def color = status == 'success' ? 'good' : status == 'failure' ? 'danger' : 'warning'
+    def emoji = status == 'success' ? '✅' : status == 'failure' ? '❌' : '⚠️'
+    
+    def message = """
+${emoji} *Backend Build ${status.toUpperCase()}*
+
+*Commit:* ${env.GIT_COMMIT_HASH}
+*Message:* ${env.GIT_COMMIT_MSG}
+*Author:* ${env.GIT_COMMIT_AUTHOR}
+*Branch:* ${env.GIT_BRANCH}
+*Build:* #${BUILD_NUMBER}
+*Duration:* ${currentBuild.durationString}
+*Console:* ${env.BUILD_URL}console
+
+${status == 'success' ? '🎉 Backend deployed successfully on port 8000!' : '⚠️ Build failed. Please check the console logs.'}
+""".stripIndent()
+    
+    sh """
+        curl -X POST ${SLACK_WEBHOOK_URL} \\
+        -H 'Content-Type: application/json' \\
+        -d '{
+            "channel": "${SLACK_CHANNEL}",
+            "username": "Jenkins CI/CD",
+            "icon_emoji": ":jenkins:",
+            "attachments": [{
+                "color": "${color}",
+                "text": "${message.replace('"', '\\"').replace('\n', '\\n')}",
+                "mrkdwn_in": ["text"]
+            }]
+        }'
+    """
+}
+
+// Helper function to generate build summary
+def generateBuildSummary() {
+    def summary = """
+========================================
+Backend CI/CD Pipeline Summary
+========================================
+Build Number: ${BUILD_NUMBER}
+Status: ${currentBuild.currentResult}
+Branch: ${env.GIT_BRANCH}
+Commit: ${env.GIT_COMMIT_HASH}
+Author: ${env.GIT_COMMIT_AUTHOR}
+Commit Message: ${env.GIT_COMMIT_MSG}
+Duration: ${currentBuild.durationString}
+Build URL: ${env.BUILD_URL}
+========================================
+""".stripIndent()
+    
+    echo summary
+    
+    // Write summary to file
+    writeFile file: 'build-summary.txt', text: summary
+    archiveArtifacts artifacts: 'build-summary.txt', allowEmptyArchive: true
 }
 

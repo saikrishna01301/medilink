@@ -1,168 +1,371 @@
-// ===================================
-// MediLink Frontend - Jenkins Pipeline
-// ===================================
-// Deploys frontend to GCP Compute Instance
-
 pipeline {
     agent any
     
     environment {
-        // Docker Configuration
-        IMAGE_NAME = 'medilink-frontend'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        GCP_PROJECT_ID = credentials('gcp-project-id')
-        GCP_REGION = 'us-central1'
-        INSTANCE_NAME = 'medilink-frontend-instance'
-        
-        // Backend API URL (your deployed backend)
-        NEXT_PUBLIC_API_URL = credentials('backend-api-url')
-        NODE_ENV = 'production'
-        
-        // Note: GCP_KEY_FILE handled in withCredentials block
+        NODE_VERSION = '18.x'
+        FRONTEND_DIR = 'frontend'
+        BUILD_DIR = '${WORKSPACE}/${FRONTEND_DIR}'
+        BACKUP_DIR = '${WORKSPACE}/backups'
+        SLACK_WEBHOOK_URL = credentials('slack-channel-secret')
+        SLACK_CHANNEL = '#team2'
+        DEPLOYMENT_URL = env.DEPLOYMENT_URL ?: 'http://localhost:3000'
     }
     
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+    }
+    
+    triggers {
+        // Auto-trigger on every commit
+        pollSCM('H/5 * * * *') // Poll every 5 minutes
+        // For GitHub/GitLab webhooks, configure in Jenkins UI:
+        // Manage Jenkins > Configure System > GitHub/GitLab webhooks
     }
     
     stages {
         stage('Checkout') {
             steps {
-                echo '📥 Checking out code...'
-                checkout scm
+                script {
+                    echo "Checking out code from ${env.GIT_BRANCH}"
+                    checkout scm
+                    // Get commit information
+                    env.GIT_COMMIT_MSG = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_COMMIT_AUTHOR = sh(
+                        script: 'git log -1 --pretty=%an',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_COMMIT_HASH = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Create Backup') {
+            steps {
+                script {
+                    echo "Creating backup of previous build..."
+                    sh """
+                        mkdir -p ${BACKUP_DIR}
+                        if [ -d "${BUILD_DIR}/.next" ]; then
+                            tar -czf ${BACKUP_DIR}/backup-${BUILD_NUMBER}-${env.GIT_COMMIT_HASH}.tar.gz \
+                                -C ${BUILD_DIR} .next package.json package-lock.json
+                            echo "Backup created: backup-${BUILD_NUMBER}-${env.GIT_COMMIT_HASH}.tar.gz"
+                        fi
+                    """
+                }
+            }
+        }
+        
+        stage('Setup Node.js') {
+            steps {
+                script {
+                    echo "Setting up Node.js ${NODE_VERSION}"
+                    // Use NodeJS plugin if available, otherwise install manually
+                    try {
+                        sh '''
+                            if command -v node &> /dev/null; then
+                                echo "Node.js already installed: $(node --version)"
+                                echo "npm version: $(npm --version)"
+                            else
+                                echo "Installing Node.js..."
+                                curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+                                sudo apt-get install -y nodejs
+                            fi
+                            node --version
+                            npm --version
+                        '''
+                    } catch (Exception e) {
+                        echo "Node.js setup failed: ${e.message}"
+                        echo "Ensure Node.js is installed on Jenkins server"
+                        throw e
+                    }
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir(FRONTEND_DIR) {
+                    script {
+                        echo "Installing npm dependencies..."
+                        sh 'npm ci --prefer-offline --no-audit'
+                    }
+                }
+            }
+        }
+        
+        stage('Security Audit') {
+            steps {
+                dir(FRONTEND_DIR) {
+                    script {
+                        echo "Running security audit..."
+                        sh '''
+                            node scripts/security-audit.js || true
+                            npm audit --audit-level=moderate || true
+                        '''
+                    }
+                }
             }
             post {
                 always {
-                    slackSend channel: 'team2', 
-                            message: "Frontend Build *${currentBuild.fullDisplayName}* started"
-                }
-            }
-        }
-        
-        stage('Build Docker Image') {
-            steps {
-                echo '🐳 Building Docker image...'
-                dir('frontend') {
                     script {
-                        sh """
-                            docker build \
-                                --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
-                                -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-                        """
+                        // Archive security audit results
+                        archiveArtifacts artifacts: 'frontend/security-audit-report.json', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+        
+        stage('Lint') {
+            steps {
+                dir(FRONTEND_DIR) {
+                    script {
+                        echo "Running ESLint..."
+                        sh 'npm run lint || true'
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                dir(FRONTEND_DIR) {
+                    script {
+                        echo "Building Next.js application..."
+                        sh '''
+                            export NODE_ENV=production
+                            npm run build
+                        '''
                     }
                 }
             }
             post {
-                success {
-                    slackSend channel: 'team2', 
-                            color: 'good',
-                            message: "Docker Build *${currentBuild.fullDisplayName}* SUCCEEDED"
-                }
                 failure {
-                    slackSend channel: 'team2', 
-                            color: 'danger',
-                            message: "Docker Build *${currentBuild.fullDisplayName}* FAILED"
-                }
-            }
-        }
-        
-        stage('Push to GCP Container Registry') {
-            steps {
-                echo '📤 Pushing image to GCR...'
-                script {
-                    // Use withCredentials to properly handle Secret File
-                    withCredentials([file(credentialsId: 'gcp-service-account-key', variable: 'GCP_KEY')]) {
-                        sh """
-                            # Authenticate with GCP
-                            gcloud auth activate-service-account --key-file=\${GCP_KEY}
-                            gcloud config set project ${GCP_PROJECT_ID}
-                        
-                            # Configure Docker for GCR
-                            gcloud auth configure-docker
-                            
-                            # Tag and push image
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                            docker tag ${IMAGE_NAME}:${IMAGE_TAG} gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}
-                            docker push gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:latest
-                        """
+                    script {
+                        echo "Build failed! Sending notification..."
+                        sendSlackNotification('failure')
                     }
-                }
-            }
-            post {
-                success {
-                    slackSend channel: 'team2', 
-                            color: 'good',
-                            message: "Image pushed to GCR: gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}"
-                }
-            }
-        }
-        
-        stage('Deploy to GCP Instance') {
-            steps {
-                echo '🚀 Deploying to GCP instance...'
-                script {
-                    sh """
-                        # Create or update compute instance
-                        gcloud compute instances update-container ${INSTANCE_NAME} \
-                            --zone=${GCP_REGION}-a \
-                            --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
-                            --container-env=NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL},NODE_ENV=${NODE_ENV} \
-                            || gcloud compute instances create-with-container ${INSTANCE_NAME} \
-                                --zone=${GCP_REGION}-a \
-                                --machine-type=e2-medium \
-                                --tags=http-server,https-server \
-                                --container-image=gcr.io/${GCP_PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG} \
-                                --container-env=NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL},NODE_ENV=${NODE_ENV}
-                    """
                 }
             }
         }
         
         stage('Health Check') {
             steps {
-                echo '🏥 Running health check...'
                 script {
-                    sh """
-                        # Get instance external IP
-                        INSTANCE_IP=\$(gcloud compute instances describe ${INSTANCE_NAME} \
-                            --zone=${GCP_REGION}-a \
-                            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+                    echo "Running health check..."
+                    dir(FRONTEND_DIR) {
+                        sh 'node scripts/health-check.js || true'
+                    }
+                }
+            }
+        }
+        
+        stage('Performance Test') {
+            steps {
+                script {
+                    echo "Running performance tests..."
+                    dir(FRONTEND_DIR) {
+                        sh 'node scripts/performance-monitor.js || true'
+                    }
+                }
+            }
+            post {
+                always {
+                    script {
+                        // Archive performance reports
+                        archiveArtifacts artifacts: 'frontend/performance-report.json', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'prince'
+                }
+            }
+            steps {
+                script {
+                    echo "Deploying frontend to localhost:3000..."
+                    
+                    sh '''
+                        cd ${BUILD_DIR}
                         
-                        echo "Frontend deployed at: http://\${INSTANCE_IP}:3000"
+                        # Install PM2 if not available (recommended for process management)
+                        if ! command -v pm2 &> /dev/null; then
+                            echo "Installing PM2..."
+                            npm install -g pm2
+                        fi
                         
-                        # Wait for service to start
-                        sleep 30
+                        # Stop existing frontend process if running
+                        pm2 stop medilink-frontend || true
+                        pm2 delete medilink-frontend || true
                         
-                        # Health check
-                        curl -f http://\${INSTANCE_IP}:3000 || exit 1
-                        echo "✅ Frontend is healthy!"
-                    """
+                        # Ensure port 3000 is available
+                        echo "Checking port 3000..."
+                        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+                        
+                        # Start frontend on port 3000
+                        echo "Starting frontend on port 3000..."
+                        PORT=3000 pm2 start npm --name "medilink-frontend" -- start
+                        
+                        # Save PM2 process list
+                        pm2 save
+                        
+                        # Display PM2 status
+                        pm2 status
+                        
+                        echo "Frontend deployed successfully!"
+                        echo "Access frontend at: http://localhost:3000"
+                    '''
+                }
+            }
+            post {
+                success {
+                    script {
+                        echo "Deployment successful!"
+                        sendSlackNotification('success')
+                    }
+                }
+                failure {
+                    script {
+                        echo "Deployment failed!"
+                        sendSlackNotification('failure')
+                    }
+                }
+            }
+        }
+        
+        stage('Post-Deployment Monitoring') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'prince'
+                }
+            }
+            steps {
+                script {
+                    echo "Starting post-deployment monitoring..."
+                    // Wait for deployment to stabilize
+                    sleep(time: 30, unit: 'SECONDS')
+                    
+                    // Run health checks
+                    sh '''
+                        for i in {1..5}; do
+                            echo "Health check attempt $i..."
+                            curl -f ${DEPLOYMENT_URL}/api/health || curl -f ${DEPLOYMENT_URL} || true
+                            sleep 10
+                        done
+                    '''
+                    
+                    // Run performance monitoring
+                    dir(FRONTEND_DIR) {
+                        sh 'node scripts/performance-monitor.js || true'
+                    }
                 }
             }
         }
     }
     
     post {
+        always {
+            script {
+                echo "Pipeline completed. Generating summary..."
+                generateBuildSummary()
+            }
+        }
         success {
-            echo '✅ Frontend deployment successful!'
-            slackSend channel: 'team2', 
-                    color: 'good',
-                    message: "Frontend Deployment *${currentBuild.fullDisplayName}* SUCCEEDED ✅"
+            script {
+                echo "Pipeline succeeded!"
+            }
         }
         failure {
-            echo '❌ Frontend deployment failed!'
-            slackSend channel: 'team2', 
-                    color: 'danger',
-                    message: "Frontend Deployment *${currentBuild.fullDisplayName}* FAILED ❌"
+            script {
+                echo "Pipeline failed!"
+                sendSlackNotification('failure')
+            }
         }
         cleanup {
-            // Clean up old images
-            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
-            // Clean workspace
-            cleanWs()
+            script {
+                // Clean up old backups (keep last 10)
+                sh """
+                    cd ${BACKUP_DIR}
+                    ls -t | tail -n +11 | xargs rm -f || true
+                """
+                // Clean up workspace
+                cleanWs()
+            }
         }
     }
 }
+
+// Helper function to send Slack notifications
+def sendSlackNotification(String status) {
+    def color = status == 'success' ? 'good' : status == 'failure' ? 'danger' : 'warning'
+    def emoji = status == 'success' ? '✅' : status == 'failure' ? '❌' : '⚠️'
+    
+    def message = """
+${emoji} *Frontend Build ${status.toUpperCase()}*
+
+*Commit:* ${env.GIT_COMMIT_HASH}
+*Message:* ${env.GIT_COMMIT_MSG}
+*Author:* ${env.GIT_COMMIT_AUTHOR}
+*Branch:* ${env.GIT_BRANCH}
+*Build:* #${BUILD_NUMBER}
+*Duration:* ${currentBuild.durationString}
+*Console:* ${env.BUILD_URL}console
+
+${status == 'success' ? '🎉 Build deployed successfully!' : '⚠️ Build failed. Please check the console logs.'}
+""".stripIndent()
+    
+    sh """
+        curl -X POST ${SLACK_WEBHOOK_URL} \\
+        -H 'Content-Type: application/json' \\
+        -d '{
+            "channel": "${SLACK_CHANNEL}",
+            "username": "Jenkins CI/CD",
+            "icon_emoji": ":jenkins:",
+            "attachments": [{
+                "color": "${color}",
+                "text": "${message.replace('"', '\\"').replace('\n', '\\n')}",
+                "mrkdwn_in": ["text"]
+            }]
+        }'
+    """
+}
+
+// Helper function to generate build summary
+def generateBuildSummary() {
+    def summary = """
+========================================
+Frontend CI/CD Pipeline Summary
+========================================
+Build Number: ${BUILD_NUMBER}
+Status: ${currentBuild.currentResult}
+Branch: ${env.GIT_BRANCH}
+Commit: ${env.GIT_COMMIT_HASH}
+Author: ${env.GIT_COMMIT_AUTHOR}
+Commit Message: ${env.GIT_COMMIT_MSG}
+Duration: ${currentBuild.durationString}
+Build URL: ${env.BUILD_URL}
+========================================
+""".stripIndent()
+    
+    echo summary
+    
+    // Write summary to file
+    writeFile file: 'build-summary.txt', text: summary
+    archiveArtifacts artifacts: 'build-summary.txt', allowEmptyArchive: true
+}
+

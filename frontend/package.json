@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "health-check": "node scripts/health-check.js",
+    "performance-monitor": "node scripts/performance-monitor.js",
+    "security-audit": "node scripts/security-audit.js",
+    "backup": "bash scripts/backup.sh"
   },
   "dependencies": {
     "next": "15.5.4",
