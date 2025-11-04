@@ -8,7 +8,7 @@ pipeline {
         BACKUP_DIR = '${WORKSPACE}/backups'
         SLACK_WEBHOOK_URL = credentials('slack-channel-secret')
         SLACK_CHANNEL = '#team2'
-        DEPLOYMENT_URL = env.DEPLOYMENT_URL ?: 'http://localhost:3000'
+        DEPLOYMENT_URL = 'http://localhost:3000'
     }
     
     options {
