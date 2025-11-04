@@ -41,7 +41,7 @@ header {
 
 @font-face {
   font-family: "Adoha";
-  src: url("/fonts/Adoha-Regular.ttf") format("truetype");
+  src: url("./fonts/Adoha.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
