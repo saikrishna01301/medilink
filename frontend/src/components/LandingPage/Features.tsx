@@ -2,7 +2,7 @@ import React from "react";
 // We are using standard <img> tags here for compatibility in this environment.
 
 // Image paths
-const forgotImage = "/Shrugging.svg";
+const forgotImage = "/shrugging.svg";
 const paperworkImage = "/paperwork.svg";
 
 // Data objects for the two sections
