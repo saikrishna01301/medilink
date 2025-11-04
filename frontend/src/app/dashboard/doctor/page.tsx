@@ -287,47 +287,49 @@ export default function DoctorDashboard() {
                   </li>
                 </ul>
               </div>
-            </nav>
 
-            {/* Bottom Section - Fixed at bottom */}
-            <div className="p-4 border-t border-gray-200 space-y-1 mt-auto">
-              <a
-                href="#"
-                className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
-              >
-                <Image
-                  src="/icons/account-settings.svg"
-                  alt="Account Settings"
-                  width={20}
-                  height={20}
-                />
-                Account Settings
-              </a>
-              <a
-                href="#"
-                className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
-              >
-                <Image
-                  src="/icons/headphones.svg"
-                  alt="Help & Support"
-                  width={20}
-                  height={20}
-                />
-                Help & Support
-              </a>
-              <button
-                onClick={logout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
-              >
-                <Image
-                  src="/icons/log-out.svg"
-                  alt="Logout"
-                  width={20}
-                  height={20}
-                />
-                Logout
-              </button>
-            </div>
+              {/* Account Settings Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="space-y-1">
+                  <a
+                    href="#"
+                    className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
+                  >
+                    <Image
+                      src="/icons/account-settings.svg"
+                      alt="Account Settings"
+                      width={20}
+                      height={20}
+                    />
+                    Account Settings
+                  </a>
+                  <a
+                    href="#"
+                    className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
+                  >
+                    <Image
+                      src="/icons/headphones.svg"
+                      alt="Help & Support"
+                      width={20}
+                      height={20}
+                    />
+                    Help & Support
+                  </a>
+                  <button
+                    onClick={logout}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
+                  >
+                    <Image
+                      src="/icons/log-out.svg"
+                      alt="Logout"
+                      width={20}
+                      height={20}
+                    />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </nav>
           </aside>
 
           {/* Main Content - 1024px */}
