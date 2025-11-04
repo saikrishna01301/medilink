@@ -310,6 +310,34 @@ export default function PatientDashboard() {
                       className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
                     >
                       <Image
+                        src="/icons/microscope.svg"
+                        alt="Lab Test Reports"
+                        width={20}
+                        height={20}
+                      />
+                      Lab Test Reports
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="#"
+                      className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
+                    >
+                      <Image
+                        src="/icons/medical-prescription.svg"
+                        alt="My Prescription"
+                        width={20}
+                        height={20}
+                      />
+                      My Prescription
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="#"
+                      className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:bg-white rounded-lg transition"
+                    >
+                      <Image
                         src="/icons/messages.svg"
                         alt="Chats"
                         width={20}
