@@ -40,6 +40,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadProfileData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Populate user info from auth context as initial fallback
@@ -65,7 +66,7 @@ export default function SettingsPage() {
       // Populate user info - use auth context user as fallback
       setUserInfo({
         first_name: data.user.first_name || user?.first_name || "",
-        middle_name: data.user.middle_name || user?.middle_name || "",
+        middle_name: data.user.middle_name || "",
         last_name: data.user.last_name || user?.last_name || "",
         phone: data.user.phone || user?.phone || "",
         emergency_contact: data.user.emergency_contact || "",
@@ -367,7 +368,7 @@ export default function SettingsPage() {
                   Middle Name
                 </label>
                 <p className="text-gray-900 text-base py-2">
-                  {profileData?.user.middle_name || user?.middle_name || "—"}
+                  {profileData?.user.middle_name || "—"}
                 </p>
               </div>
               <div>

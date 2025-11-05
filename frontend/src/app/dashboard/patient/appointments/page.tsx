@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppointmentsPage() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>

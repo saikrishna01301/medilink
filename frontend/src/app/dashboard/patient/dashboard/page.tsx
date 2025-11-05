@@ -16,7 +16,7 @@ interface Activity {
 }
 
 export default function PatientDashboardContent() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
 
   const activities: Activity[] = [
     {

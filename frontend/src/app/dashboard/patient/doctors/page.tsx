@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
-import Link from "next/link";
 
 interface Doctor {
   id: number;
@@ -21,7 +20,7 @@ interface Doctor {
 }
 
 export default function DoctorsPage() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [insuranceFilter, setInsuranceFilter] = useState(false);

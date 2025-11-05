@@ -365,11 +365,20 @@ def sendSlackNotification(String status) {
         }
     }
     
-    // Take first line if multiline, truncate if too long (max 200 chars)
+    // Preserve full commit message (all lines), truncate if too long (max 500 chars)
     if (commitMsg && !commitMsg.isEmpty()) {
-        commitMsg = commitMsg.split('\n')[0].trim()
-        if (commitMsg.length() > 200) {
-            commitMsg = commitMsg.substring(0, 197) + '...'
+        // Trim leading/trailing whitespace but preserve line breaks
+        commitMsg = commitMsg.trim()
+        // If message is too long, truncate but preserve line structure
+        if (commitMsg.length() > 500) {
+            // Try to truncate at a line break if possible
+            def truncated = commitMsg.substring(0, 497)
+            def lastNewline = truncated.lastIndexOf('\n')
+            if (lastNewline > 400) {
+                commitMsg = truncated.substring(0, lastNewline) + '\n...'
+            } else {
+                commitMsg = truncated + '...'
+            }
         }
     } else {
         commitMsg = 'No commit message'

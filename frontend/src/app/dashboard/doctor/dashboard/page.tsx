@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 
 export default function DoctorDashboardContent() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Generate calendar days

@@ -79,7 +79,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
     setLoading(true);
 
     try {
-      const response = await authAPI.signUp({
+      await authAPI.signUp({
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
