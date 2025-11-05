@@ -6,7 +6,7 @@ pipeline {
         FRONTEND_DIR = 'frontend'
         BUILD_DIR = '${WORKSPACE}/${FRONTEND_DIR}'
         BACKUP_DIR = '${WORKSPACE}/backups'
-        SLACK_WEBHOOK_URL = credentials('slack-channel-secret')
+        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
         SLACK_CHANNEL = '#team2'
         DEPLOYMENT_URL = 'http://localhost:3000'
     }
@@ -150,6 +150,12 @@ pipeline {
                 }
             }
             post {
+                success {
+                    script {
+                        echo "Build succeeded! Sending notification..."
+                        sendSlackNotification('success')
+                    }
+                }
                 failure {
                     script {
                         echo "Build failed! Sending notification..."
@@ -305,6 +311,7 @@ pipeline {
         success {
             script {
                 echo "Pipeline succeeded!"
+                sendSlackNotification('success')
             }
         }
         failure {
@@ -329,6 +336,13 @@ pipeline {
 
 // Helper function to send Slack notifications
 def sendSlackNotification(String status) {
+    // Check if Slack webhook URL is configured
+    def webhookUrl = SLACK_WEBHOOK_URL?.toString()?.trim()
+    if (!webhookUrl || webhookUrl.isEmpty()) {
+        echo "Slack webhook URL not configured, skipping notification"
+        return
+    }
+    
     def color = status == 'success' ? 'good' : status == 'failure' ? 'danger' : 'warning'
     def emoji = status == 'success' ? '✅' : status == 'failure' ? '❌' : '⚠️'
     
@@ -346,20 +360,34 @@ ${emoji} *Frontend Build ${status.toUpperCase()}*
 ${status == 'success' ? '🎉 Build deployed successfully!' : '⚠️ Build failed. Please check the console logs.'}
 """.stripIndent()
     
-    sh """
-        curl -X POST ${SLACK_WEBHOOK_URL} \\
-        -H 'Content-Type: application/json' \\
-        -d '{
-            "channel": "${SLACK_CHANNEL}",
-            "username": "Jenkins CI/CD",
-            "icon_emoji": ":jenkins:",
-            "attachments": [{
-                "color": "${color}",
-                "text": "${message.replace('"', '\\"').replace('\n', '\\n')}",
-                "mrkdwn_in": ["text"]
-            }]
-        }'
-    """
+    // Properly escape JSON string
+    def escapedMessage = message
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\n', '\\n')
+        .replace('\r', '')
+        .replace('$', '\\$')
+    
+    try {
+        sh """
+            curl -X POST "${webhookUrl}" \\
+            -H 'Content-Type: application/json' \\
+            -d '{
+                "channel": "${SLACK_CHANNEL}",
+                "username": "Jenkins CI/CD",
+                "icon_emoji": ":jenkins:",
+                "attachments": [{
+                    "color": "${color}",
+                    "text": "${escapedMessage}",
+                    "mrkdwn_in": ["text"]
+                }]
+            }'
+        """
+        echo "Slack notification sent successfully"
+    } catch (Exception e) {
+        echo "Failed to send Slack notification: ${e.message}"
+        // Don't fail the build if Slack notification fails
+    }
 }
 
 // Helper function to generate build summary
@@ -417,15 +445,17 @@ def checkSecurityIssues() {
     }
     
     // Check for high/critical vulnerabilities
-    def criticalVulns = report.vulnerabilities?.findAll { 
-        it.severity == 'critical' || it.severity == 'high' 
+    def criticalVulns = report.vulnerabilities?.findAll { vuln ->
+        vuln instanceof Map && (vuln.severity == 'critical' || vuln.severity == 'high')
     } ?: []
     
     if (criticalVulns.size() > 0) {
         hasCriticalIssues = true
         issues.add("Found ${criticalVulns.size()} high/critical vulnerabilities")
         criticalVulns.take(5).each { vuln ->
-            issues.add("• ${vuln.package}: ${vuln.title}")
+            def pkg = vuln.package ?: 'unknown'
+            def title = vuln.title ?: vuln.message ?: 'No title'
+            issues.add("• ${pkg}: ${title}")
         }
     }
     
@@ -437,8 +467,9 @@ def checkSecurityIssues() {
     }
     
     // Check for high severity security issues
-    def highSeverityIssues = report.securityIssues?.findAll { 
-        it.severity == 'high' 
+    // securityIssues can contain both objects and strings, so we need to handle both
+    def highSeverityIssues = report.securityIssues?.findAll { issue ->
+        issue instanceof Map && issue.severity == 'high'
     } ?: []
     
     if (highSeverityIssues.size() > 0) {
@@ -559,6 +590,13 @@ def checkPerformanceIssues() {
 
 // Helper function to send detailed issue notifications
 def sendIssueNotification(String issueType, String status, List<String> issues, int criticalCount) {
+    // Check if Slack webhook URL is configured
+    def webhookUrl = SLACK_WEBHOOK_URL?.toString()?.trim()
+    if (!webhookUrl || webhookUrl.isEmpty()) {
+        echo "Slack webhook URL not configured, skipping ${issueType} notification"
+        return
+    }
+    
     def color = 'warning'
     def emoji = '⚠️'
     def title = ''
@@ -585,12 +623,17 @@ def sendIssueNotification(String issueType, String status, List<String> issues, 
     
     def message = "${emoji} *${title} - ${status.toUpperCase()}*\\n\\n*Build:* #${BUILD_NUMBER}\\n*Branch:* ${env.GIT_BRANCH}\\n*Commit:* ${env.GIT_COMMIT_HASH}\\n*Author:* ${env.GIT_COMMIT_AUTHOR}\\n\\n*Issues Found:*\\n${issuesText}\\n\\n*Critical Count:* ${criticalCount}\\n\\n*Console:* ${env.BUILD_URL}console\\n*Report:* Check archived artifacts for detailed report"
     
-    // Escape message for JSON
-    def escapedMessage = message.replace('"', '\\"').replace('$', '\\$')
+    // Properly escape JSON string
+    def escapedMessage = message
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\n', '\\n')
+        .replace('\r', '')
+        .replace('$', '\\$')
     
     try {
         sh """
-            curl -X POST ${SLACK_WEBHOOK_URL} \\
+            curl -X POST "${webhookUrl}" \\
             -H 'Content-Type: application/json' \\
             -d '{
                 "channel": "${SLACK_CHANNEL}",
