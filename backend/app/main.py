@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db import init_db
 from db.database import init_connector, close_connector
-from routers import auth_routes
+from routers import auth_routes, doctor_routes
 
 
 app = FastAPI()
@@ -40,3 +40,4 @@ async def on_shutdown():
 
 # Include Routers
 app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+app.include_router(doctor_routes.router, prefix="/doctors", tags=["doctors"])

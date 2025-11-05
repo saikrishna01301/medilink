@@ -1,6 +1,6 @@
 from .base import Base
 from .database import engine, sessionLocal, init_db, get_session
-from .models import User, DBSession, OTPStore
+from .models import User, DBSession, OTPStore, DoctorProfile
 from .crud import auth_crud
 
 __all__ = [
@@ -15,4 +15,5 @@ __all__ = [
     "User",
     "DBSession",
     "OTPStore",
+    "DoctorProfile",
 ]

@@ -203,3 +203,137 @@ export const authAPI = {
   },
 };
 
+// Doctor Profile Types
+export interface DoctorProfile {
+  id: number;
+  user_id: number;
+  specialty: string;
+  bio?: string;
+  photo_url?: string;
+  years_of_experience?: number;
+  medical_license_number?: string;
+  board_certifications?: string[];
+  languages_spoken?: string[];
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DoctorClinic {
+  assignment_id: number;
+  clinic_id: number;
+  clinic_name?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  is_primary: boolean;
+  consultation_fee?: number;
+  available_from?: string;
+  available_to?: string;
+  days_of_week?: number[];
+  accepting_new_patients: boolean;
+}
+
+export interface DoctorProfileData {
+  user: {
+    id: number;
+    first_name: string;
+    middle_name?: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    emergency_contact?: string;
+  };
+  profile: DoctorProfile | null;
+  clinics: DoctorClinic[];
+}
+
+export interface DoctorProfileUpdate {
+  specialty?: string;
+  bio?: string;
+  photo_url?: string;
+  years_of_experience?: number;
+  medical_license_number?: string;
+  board_certifications?: string[];
+  languages_spoken?: string[];
+}
+
+export interface UserInfoUpdate {
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  phone?: string;
+  emergency_contact?: string;
+}
+
+// Doctor API Functions
+export const doctorAPI = {
+  // Get doctor profile
+  getProfile: async (): Promise<DoctorProfileData> => {
+    const response = await fetch(`${API_BASE_URL}/doctors/profile`, {
+      method: "GET",
+      credentials: "include", // Important: Include cookies
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to fetch doctor profile"
+      );
+    }
+
+    return response.json();
+  },
+
+  // Update doctor profile
+  updateProfile: async (
+    data: DoctorProfileUpdate
+  ): Promise<DoctorProfileData> => {
+    const response = await fetch(`${API_BASE_URL}/doctors/profile`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include", // Important: Include cookies
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to update doctor profile"
+      );
+    }
+
+    return response.json();
+  },
+
+  // Update user info
+  updateUserInfo: async (data: UserInfoUpdate): Promise<DoctorProfileData> => {
+    const response = await fetch(`${API_BASE_URL}/doctors/user-info`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include", // Important: Include cookies
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to update user information"
+      );
+    }
+
+    return response.json();
+  },
+};
+

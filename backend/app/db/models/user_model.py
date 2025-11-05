@@ -40,3 +40,5 @@ class User(Base):
     sessions: Mapped[List["DBSession"]] = relationship(back_populates="user")
     # Link to the OTPStore
     otp_codes: Mapped[List["OTPStore"]] = relationship(back_populates="user")
+    # Link to doctor profile (one-to-one)
+    doctor_profile: Mapped[Optional["DoctorProfile"]] = relationship(back_populates="user", uselist=False)
