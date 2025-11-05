@@ -144,7 +144,7 @@ pipeline {
                         echo "Building Next.js application..."
                         sh '''
                             export NODE_ENV=production
-                            npm run dev
+                            npm run build
                         '''
                     }
                 }
