@@ -11,7 +11,7 @@ const PlatformIntro: React.FC = () => {
         <input
           type="email"
           placeholder="enter your e-mail address"
-          className="flex-grow px-4 py-3 text-gray-600 bg-white border border-gray-200 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="flex-grow px-4 py-3 text-gray-900 bg-white border border-gray-200 rounded-md shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         <button className="px-6 py-3 text-sm font-semibold text-gray-800 bg-white border border-gray-200 rounded-md shadow-sm transition hover:bg-gray-100">
           join us today!

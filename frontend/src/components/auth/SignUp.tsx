@@ -151,7 +151,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
               value={formData.firstName}
               onChange={handleInputChange}
               disabled={loading}
-              className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50"
+              className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
             />
           </div>
           <div className="flex flex-col flex-1">
@@ -163,7 +163,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
               value={formData.lastName}
               onChange={handleInputChange}
               disabled={loading}
-              className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50"
+              className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
             />
           </div>
         </div>
@@ -178,7 +178,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
             value={formData.email}
             onChange={handleInputChange}
             disabled={loading}
-            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50"
+            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
           />
         </div>
 
@@ -192,7 +192,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
             value={formData.password}
             onChange={handleInputChange}
             disabled={loading}
-            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50"
+            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
           />
         </div>
 
@@ -206,7 +206,7 @@ const SignUp: React.FC<SignUpProps> = ({ selectedRole, onSuccess }) => {
             value={formData.phone}
             onChange={handleInputChange}
             disabled={loading}
-            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50"
+            className="px-4 py-3 border border-gray-400 rounded-full text-sm focus:outline-none focus:border-black disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
           />
         </div>
 

@@ -375,7 +375,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50"
+              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
             />
           </div>
 
@@ -388,7 +388,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50"
+              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50 text-gray-900 placeholder:text-gray-400"
             />
           </div>
 
@@ -434,7 +434,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
               }}
               disabled={loading}
               maxLength={6}
-              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50 text-center text-2xl tracking-widest"
+              className="py-[12px] px-[16px] border border-[#bbb] rounded-[25px] text-[14px] outline-none focus:border-[#333] disabled:opacity-50 text-center text-2xl tracking-widest text-gray-900 placeholder:text-gray-400"
             />
           </div>
 

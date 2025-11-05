@@ -6,11 +6,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
 
-interface PatientLayoutProps {
+interface DoctorLayoutProps {
   children: React.ReactNode;
 }
 
-export default function PatientLayout({ children }: PatientLayoutProps) {
+export default function DoctorLayout({ children }: DoctorLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -18,12 +18,12 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/");
-    } else if (!isLoading && user?.role !== "patient") {
+    } else if (!isLoading && user?.role !== "doctor") {
       router.push(`/dashboard/${user?.role}`);
     }
   }, [isLoading, isAuthenticated, user, router]);
 
-  if (isLoading || !isAuthenticated || user?.role !== "patient") {
+  if (isLoading || !isAuthenticated || user?.role !== "doctor") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Loading...</div>
@@ -31,7 +31,7 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
     );
   }
 
-  const patientName = `${user.first_name} ${user.last_name}`;
+  const doctorName = `Dr. ${user.first_name} ${user.last_name}`;
 
   const isActive = (path: string) => {
     return pathname === path;
@@ -64,7 +64,7 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   style={{ width: "400px" }}
                 />
                 <svg
-                  className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  className="w-4 h-4 absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -97,21 +97,22 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
 
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
                 <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-                  <Image
-                    src="/Avatar.jpg"
-                    alt="User"
-                    width={40}
-                    height={40}
-                    className="w-full h-full object-cover"
-                  />
+                  <svg
+                    className="w-6 h-6 text-gray-600"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
+                  </svg>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {patientName}
+                    {doctorName}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Patient
+                    General Practitioner G.P.
                   </p>
+                  <p className="text-xs text-gray-500">since 2004</p>
                 </div>
               </div>
             </div>
@@ -120,7 +121,7 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
 
         {/* Welcome Message Div - Full width, centered text, no background, no shadows */}
         <div className="w-full text-center py-2">
-          <p className="text-gray-700">Welcome back {patientName}</p>
+          <p className="text-gray-700">Welcome back {doctorName}</p>
         </div>
 
         <div className="flex flex-1">
@@ -135,9 +136,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                 <ul className="space-y-1">
                   <li>
                     <Link
-                      href="/dashboard/patient/dashboard"
+                      href="/dashboard/doctor/dashboard"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/dashboard")
+                        isActive("/dashboard/doctor/dashboard")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -153,9 +154,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/appointments"
+                      href="/dashboard/doctor/appointments"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/appointments")
+                        isActive("/dashboard/doctor/appointments")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -171,63 +172,27 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/doctors"
+                      href="/dashboard/doctor/patients"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/doctors")
+                        isActive("/dashboard/doctor/patients")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
                     >
                       <Image
                         src="/icons/users.svg"
-                        alt="Doctors"
+                        alt="Patients"
                         width={20}
                         height={20}
                       />
-                      Doctors
+                      Patients
                     </Link>
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/lab-reports"
+                      href="/dashboard/doctor/chats"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/lab-reports")
-                          ? "bg-white text-gray-800 font-medium shadow-sm"
-                          : "text-gray-600 hover:bg-white"
-                      }`}
-                    >
-                      <Image
-                        src="/icons/microscope.svg"
-                        alt="Lab Test Reports"
-                        width={20}
-                        height={20}
-                      />
-                      Lab Test Reports
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/dashboard/patient/prescriptions"
-                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/prescriptions")
-                          ? "bg-white text-gray-800 font-medium shadow-sm"
-                          : "text-gray-600 hover:bg-white"
-                      }`}
-                    >
-                      <Image
-                        src="/icons/medical-prescription.svg"
-                        alt="My Prescription"
-                        width={20}
-                        height={20}
-                      />
-                      My Prescription
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/dashboard/patient/chats"
-                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/chats")
+                        isActive("/dashboard/doctor/chats")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -243,20 +208,20 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/insurance"
+                      href="/dashboard/doctor/reports"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/insurance")
+                        isActive("/dashboard/doctor/reports")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
                     >
                       <Image
-                        src="/icons/file-invoice-dollar.svg"
-                        alt="Insurance"
+                        src="/icons/data-report.svg"
+                        alt="Reports"
                         width={20}
                         height={20}
                       />
-                      Insurance
+                      Reports
                     </Link>
                   </li>
                 </ul>
@@ -270,9 +235,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                 <ul className="space-y-1">
                   <li>
                     <Link
-                      href="/dashboard/patient/finance"
+                      href="/dashboard/doctor/finance"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/finance")
+                        isActive("/dashboard/doctor/finance")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -288,9 +253,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/payment-history"
+                      href="/dashboard/doctor/payment-history"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/payment-history")
+                        isActive("/dashboard/doctor/payment-history")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -306,9 +271,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   </li>
                   <li>
                     <Link
-                      href="/dashboard/patient/reports"
+                      href="/dashboard/doctor/finance-reports"
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                        isActive("/dashboard/patient/reports")
+                        isActive("/dashboard/doctor/finance-reports")
                           ? "bg-white text-gray-800 font-medium shadow-sm"
                           : "text-gray-600 hover:bg-white"
                       }`}
@@ -329,9 +294,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
               <div className="border-t border-gray-200 pt-6">
                 <div className="space-y-1">
                   <Link
-                    href="/dashboard/patient/settings"
+                    href="/dashboard/doctor/settings"
                     className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                      isActive("/dashboard/patient/settings")
+                      isActive("/dashboard/doctor/settings")
                         ? "bg-white text-gray-800 font-medium shadow-sm"
                         : "text-gray-600 hover:bg-white"
                     }`}
@@ -345,9 +310,9 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                     Account Settings
                   </Link>
                   <Link
-                    href="/dashboard/patient/support"
+                    href="/dashboard/doctor/support"
                     className={`flex items-center gap-3 px-4 py-2 rounded-lg transition ${
-                      isActive("/dashboard/patient/support")
+                      isActive("/dashboard/doctor/support")
                         ? "bg-white text-gray-800 font-medium shadow-sm"
                         : "text-gray-600 hover:bg-white"
                     }`}
