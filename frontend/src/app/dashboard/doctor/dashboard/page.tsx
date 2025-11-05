@@ -540,7 +540,7 @@ export default function DoctorDashboardContent() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <h4 className="text-xs font-semibold text-gray-900">
-                Tomorrow's Schedule
+                Tomorrow&apos;s Schedule
               </h4>
               <a href="#" className="text-blue-600 text-xs">
                 view all

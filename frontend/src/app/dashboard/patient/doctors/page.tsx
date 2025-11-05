@@ -212,8 +212,8 @@ export default function DoctorsPage() {
 
           {myCareTeam.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              <p>You don't have any doctors in your care team yet.</p>
-              <p className="mt-2">Click "Find a Doctor" to add doctors to your care team.</p>
+              <p>You don&apos;t have any doctors in your care team yet.</p>
+              <p className="mt-2">Click &quot;Find a Doctor&quot; to add doctors to your care team.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
