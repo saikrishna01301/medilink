@@ -95,7 +95,7 @@ pipeline {
                 dir(FRONTEND_DIR) {
                     script {
                         echo "Installing npm dependencies..."
-                        sh 'npm install'
+                        sh 'npm ci'
                     }
                 }
             }
@@ -118,6 +118,9 @@ pipeline {
                     script {
                         // Archive security audit results
                         archiveArtifacts artifacts: 'frontend/security-audit-report.json', allowEmptyArchive: true
+                        
+                        // Check for security issues and send notification
+                        checkSecurityIssues()
                     }
                 }
             }
@@ -165,6 +168,17 @@ pipeline {
                     }
                 }
             }
+            post {
+                always {
+                    script {
+                        // Archive health check results
+                        archiveArtifacts artifacts: 'frontend/health-check-report.json', allowEmptyArchive: true
+                        
+                        // Check for health issues and send notification
+                        checkHealthIssues()
+                    }
+                }
+            }
         }
         
         stage('Performance Test') {
@@ -181,6 +195,9 @@ pipeline {
                     script {
                         // Archive performance reports
                         archiveArtifacts artifacts: 'frontend/performance-report.json', allowEmptyArchive: true
+                        
+                        // Check for performance issues and send notification
+                        checkPerformanceIssues()
                     }
                 }
             }
@@ -367,5 +384,228 @@ Build URL: ${env.BUILD_URL}
     // Write summary to file
     writeFile file: 'build-summary.txt', text: summary
     archiveArtifacts artifacts: 'build-summary.txt', allowEmptyArchive: true
+}
+
+// Helper function to read JSON report file
+def readJsonReport(String filePath) {
+    try {
+        def reportPath = "${FRONTEND_DIR}/${filePath}"
+        if (fileExists(reportPath)) {
+            def reportContent = readFile(reportPath)
+            return new groovy.json.JsonSlurper().parseText(reportContent)
+        }
+    } catch (Exception e) {
+        echo "Warning: Could not read report file ${filePath}: ${e.message}"
+    }
+    return null
+}
+
+// Check for security issues and send notification
+def checkSecurityIssues() {
+    def report = readJsonReport('security-audit-report.json')
+    if (!report) {
+        echo "Security audit report not found, skipping notification check"
+        return
+    }
+    
+    def hasCriticalIssues = false
+    def issues = []
+    
+    // Check status
+    if (report.status == 'critical') {
+        hasCriticalIssues = true
+    }
+    
+    // Check for high/critical vulnerabilities
+    def criticalVulns = report.vulnerabilities?.findAll { 
+        it.severity == 'critical' || it.severity == 'high' 
+    } ?: []
+    
+    if (criticalVulns.size() > 0) {
+        hasCriticalIssues = true
+        issues.add("Found ${criticalVulns.size()} high/critical vulnerabilities")
+        criticalVulns.take(5).each { vuln ->
+            issues.add("• ${vuln.package}: ${vuln.title}")
+        }
+    }
+    
+    // Check for exposed secrets
+    def exposedSecrets = report.dataProtection?.exposedSecrets ?: []
+    if (exposedSecrets.size() > 0) {
+        hasCriticalIssues = true
+        issues.add("Found ${exposedSecrets.size()} potential exposed secrets")
+    }
+    
+    // Check for high severity security issues
+    def highSeverityIssues = report.securityIssues?.findAll { 
+        it.severity == 'high' 
+    } ?: []
+    
+    if (highSeverityIssues.size() > 0) {
+        hasCriticalIssues = true
+        issues.add("Found ${highSeverityIssues.size()} high severity security issues")
+    }
+    
+    // Send notification if critical issues found
+    if (hasCriticalIssues) {
+        sendIssueNotification('security', report.status, issues, criticalVulns.size() ?: 0)
+    } else if (report.status == 'warning') {
+        // Send warning for non-critical issues
+        def warnings = []
+        if (report.vulnerabilities?.size() > 0) {
+            warnings.add("Found ${report.vulnerabilities.size()} vulnerabilities (non-critical)")
+        }
+        if (report.securityIssues?.size() > 0) {
+            warnings.add("Found ${report.securityIssues.size()} security issues")
+        }
+        sendIssueNotification('security', 'warning', warnings, 0)
+    }
+}
+
+// Check for health issues and send notification
+def checkHealthIssues() {
+    def report = readJsonReport('health-check-report.json')
+    if (!report) {
+        echo "Health check report not found, skipping notification check"
+        return
+    }
+    
+    def hasIssues = false
+    def issues = []
+    
+    // Check overall status
+    if (report.status == 'unhealthy') {
+        hasIssues = true
+        issues.add("Application health check failed")
+    } else if (report.status == 'degraded') {
+        hasIssues = true
+        issues.add("Application health is degraded")
+    }
+    
+    // Check for errors
+    def errors = report.errors ?: []
+    if (errors.size() > 0) {
+        hasIssues = true
+        issues.add("Found ${errors.size()} health check errors")
+        errors.take(5).each { error ->
+            issues.add("• ${error}")
+        }
+    }
+    
+    // Check for failed checks
+    def failedChecks = report.checks?.findAll { check -> check.healthy == false } ?: []
+    if (failedChecks.size() > 0) {
+        hasIssues = true
+        issues.add("${failedChecks.size()} health checks failed")
+    }
+    
+    // Send notification if issues found
+    if (hasIssues) {
+        sendIssueNotification('health', report.status, issues, errors.size())
+    }
+}
+
+// Check for performance issues and send notification
+def checkPerformanceIssues() {
+    def report = readJsonReport('performance-report.json')
+    if (!report) {
+        echo "Performance report not found, skipping notification check"
+        return
+    }
+    
+    def hasCriticalIssues = false
+    def issues = []
+    
+    // Check status
+    if (report.status == 'error' || report.status == 'needs_attention') {
+        hasCriticalIssues = true
+    }
+    
+    // Check for high priority recommendations
+    def highPriorityRecs = report.metrics?.recommendations?.findAll { 
+        it.priority == 'high' 
+    } ?: []
+    
+    if (highPriorityRecs.size() > 0) {
+        hasCriticalIssues = true
+        issues.add("Found ${highPriorityRecs.size()} high priority performance issues")
+        highPriorityRecs.each { rec ->
+            issues.add("• ${rec.message}")
+        }
+    }
+    
+    // Check bundle size
+    def bundleSize = report.metrics?.bundleSize?.totalSize
+    if (bundleSize && bundleSize > 10 * 1024 * 1024) { // > 10MB
+        hasCriticalIssues = true
+        issues.add("Bundle size exceeds threshold: ${(bundleSize / 1024 / 1024).toFixed(2)}MB")
+    }
+    
+    // Check for warnings
+    def warnings = report.warnings ?: []
+    if (warnings.size() > 5) {
+        hasCriticalIssues = true
+        issues.add("Found ${warnings.size()} performance warnings")
+    }
+    
+    // Send notification if critical issues found
+    if (hasCriticalIssues) {
+        sendIssueNotification('performance', report.status, issues, highPriorityRecs.size())
+    } else if (report.status == 'warning' && warnings.size() > 0) {
+        def warningList = warnings.take(3).collect { "• ${it}" }
+        sendIssueNotification('performance', 'warning', warningList, 0)
+    }
+}
+
+// Helper function to send detailed issue notifications
+def sendIssueNotification(String issueType, String status, List<String> issues, int criticalCount) {
+    def color = 'warning'
+    def emoji = '⚠️'
+    def title = ''
+    
+    switch(issueType) {
+        case 'security':
+            color = (status == 'critical') ? 'danger' : 'warning'
+            emoji = (status == 'critical') ? '🔴' : '🟡'
+            title = 'Security Audit Alert'
+            break
+        case 'health':
+            color = (status == 'unhealthy') ? 'danger' : 'warning'
+            emoji = (status == 'unhealthy') ? '❌' : '⚠️'
+            title = 'Health Check Alert'
+            break
+        case 'performance':
+            color = (status == 'error' || status == 'needs_attention') ? 'warning' : 'good'
+            emoji = (status == 'error' || status == 'needs_attention') ? '⚡' : '✅'
+            title = 'Performance Alert'
+            break
+    }
+    
+    def issuesText = issues.size() > 0 ? issues.join('\\n') : 'No specific issues listed'
+    
+    def message = "${emoji} *${title} - ${status.toUpperCase()}*\\n\\n*Build:* #${BUILD_NUMBER}\\n*Branch:* ${env.GIT_BRANCH}\\n*Commit:* ${env.GIT_COMMIT_HASH}\\n*Author:* ${env.GIT_COMMIT_AUTHOR}\\n\\n*Issues Found:*\\n${issuesText}\\n\\n*Critical Count:* ${criticalCount}\\n\\n*Console:* ${env.BUILD_URL}console\\n*Report:* Check archived artifacts for detailed report"
+    
+    // Escape message for JSON
+    def escapedMessage = message.replace('"', '\\"').replace('$', '\\$')
+    
+    try {
+        sh """
+            curl -X POST ${SLACK_WEBHOOK_URL} \\
+            -H 'Content-Type: application/json' \\
+            -d '{
+                "channel": "${SLACK_CHANNEL}",
+                "username": "Jenkins CI/CD",
+                "icon_emoji": ":jenkins:",
+                "attachments": [{
+                    "color": "${color}",
+                    "text": "${escapedMessage}",
+                    "mrkdwn_in": ["text"]
+                }]
+            }'
+        """
+        echo "Sent ${issueType} notification to Slack"
+    } catch (Exception e) {
+        echo "Failed to send ${issueType} notification: ${e.message}"
+    }
 }
 
