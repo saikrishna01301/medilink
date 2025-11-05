@@ -346,47 +346,161 @@ def sendSlackNotification(String status) {
     def color = status == 'success' ? 'good' : status == 'failure' ? 'danger' : 'warning'
     def emoji = status == 'success' ? '✅' : status == 'failure' ? '❌' : '⚠️'
     
-    def message = """
-${emoji} *Frontend Build ${status.toUpperCase()}*
-
-*Commit:* ${env.GIT_COMMIT_HASH}
-*Message:* ${env.GIT_COMMIT_MSG}
-*Author:* ${env.GIT_COMMIT_AUTHOR}
-*Branch:* ${env.GIT_BRANCH}
-*Build:* #${BUILD_NUMBER}
-*Duration:* ${currentBuild.durationString}
-*Console:* ${env.BUILD_URL}console
-
-${status == 'success' ? '🎉 Build deployed successfully!' : '⚠️ Build failed. Please check the console logs.'}
-""".stripIndent()
+    // Get commit message and handle multiline/empty cases
+    def commitMsg = env.GIT_COMMIT_MSG ?: ''
     
-    // Properly escape JSON string
-    def escapedMessage = message
-        .replace('\\', '\\\\')
-        .replace('"', '\\"')
-        .replace('\n', '\\n')
-        .replace('\r', '')
-        .replace('$', '\\$')
+    // If commit message is not set, try to get it directly from git
+    if (!commitMsg || commitMsg.isEmpty()) {
+        try {
+            // Ensure we're in the workspace root where git repo is
+            dir(env.WORKSPACE ?: '.') {
+                commitMsg = sh(
+                    script: 'git log -1 --pretty=%B',
+                    returnStdout: true
+                ).trim()
+            }
+        } catch (Exception e) {
+            echo "Could not retrieve commit message: ${e.message}"
+            commitMsg = 'No commit message available'
+        }
+    }
+    
+    // Take first line if multiline, truncate if too long (max 200 chars)
+    if (commitMsg && !commitMsg.isEmpty()) {
+        commitMsg = commitMsg.split('\n')[0].trim()
+        if (commitMsg.length() > 200) {
+            commitMsg = commitMsg.substring(0, 197) + '...'
+        }
+    } else {
+        commitMsg = 'No commit message'
+    }
+    
+    // Get commit hash with fallback
+    def commitHash = env.GIT_COMMIT_HASH ?: 'unknown'
+    if (commitHash == 'unknown') {
+        try {
+            dir(env.WORKSPACE ?: '.') {
+                commitHash = sh(
+                    script: 'git rev-parse --short HEAD',
+                    returnStdout: true
+                ).trim()
+            }
+        } catch (Exception e) {
+            echo "Could not retrieve commit hash: ${e.message}"
+        }
+    }
+    
+    // Get author with fallback
+    def author = env.GIT_COMMIT_AUTHOR ?: 'Unknown'
+    if (author == 'Unknown') {
+        try {
+            dir(env.WORKSPACE ?: '.') {
+                author = sh(
+                    script: 'git log -1 --pretty=%an',
+                    returnStdout: true
+                ).trim()
+            }
+        } catch (Exception e) {
+            echo "Could not retrieve commit author: ${e.message}"
+        }
+    }
+    
+    // Debug output
+    echo "Commit Message: ${commitMsg}"
+    echo "Commit Hash: ${commitHash}"
+    echo "Author: ${author}"
+    
+    // Get branch name, clean it up
+    def branch = env.GIT_BRANCH ?: 'unknown'
+    branch = branch.replaceAll('origin/', '').replaceAll('refs/heads/', '')
+    
+    // Build message with proper formatting
+    def title = "${emoji} Frontend Build ${status.toUpperCase()}"
+    def statusMsg = status == 'success' ? '🎉 Build deployed successfully!' : '⚠️ Build failed. Please check the console logs.'
     
     try {
+        // Escape JSON special characters properly
+        def escapeJson = { String str ->
+            if (!str) return ''
+            return str.replace('\\', '\\\\')
+                     .replace('"', '\\"')
+                     .replace('\n', '\\n')
+                     .replace('\r', '\\r')
+                     .replace('\t', '\\t')
+        }
+        
+        def escapedCommitMsg = escapeJson(commitMsg)
+        def escapedCommitHash = escapeJson(commitHash)
+        def escapedAuthor = escapeJson(author)
+        def escapedBranch = escapeJson(branch)
+        def escapedTitle = escapeJson(title)
+        def escapedStatusMsg = escapeJson(statusMsg)
+        
+        // Build JSON payload with proper escaping
+        def jsonPayload = """{
+            "channel": "${SLACK_CHANNEL}",
+            "username": "Jenkins CI/CD",
+            "icon_emoji": ":jenkins:",
+            "attachments": [{
+                "color": "${color}",
+                "title": "${escapedTitle}",
+                "fields": [
+                    {
+                        "title": "Commit",
+                        "value": "${escapedCommitHash}",
+                        "short": true
+                    },
+                    {
+                        "title": "Author",
+                        "value": "${escapedAuthor}",
+                        "short": true
+                    },
+                    {
+                        "title": "Branch",
+                        "value": "${escapedBranch}",
+                        "short": true
+                    },
+                    {
+                        "title": "Build",
+                        "value": "#${BUILD_NUMBER}",
+                        "short": true
+                    },
+                    {
+                        "title": "Commit Message",
+                        "value": "${escapedCommitMsg}",
+                        "short": false
+                    }
+                ],
+                "footer": "${escapedStatusMsg}",
+                "footer_icon": ":jenkins:",
+                "ts": ${System.currentTimeMillis() / 1000}
+            }]
+        }"""
+        
+        // Write JSON to file to avoid shell escaping issues
+        writeFile file: 'slack-payload.json', text: jsonPayload
+        
         sh """
             curl -X POST "${webhookUrl}" \\
             -H 'Content-Type: application/json' \\
-            -d '{
-                "channel": "${SLACK_CHANNEL}",
-                "username": "Jenkins CI/CD",
-                "icon_emoji": ":jenkins:",
-                "attachments": [{
-                    "color": "${color}",
-                    "text": "${escapedMessage}",
-                    "mrkdwn_in": ["text"]
-                }]
-            }'
+            -d @slack-payload.json
         """
+        
         echo "Slack notification sent successfully"
     } catch (Exception e) {
         echo "Failed to send Slack notification: ${e.message}"
-        // Don't fail the build if Slack notification fails
+        // Fallback: try with simple text format
+        try {
+            def escapedCommitMsg = commitMsg.replace('"', '\\"').replace('\n', ' ')
+            def fallbackMsg = "${title}\\n\\n*Commit:* ${commitHash}\\n*Message:* ${escapedCommitMsg}\\n*Author:* ${author}\\n*Branch:* ${branch}\\n*Build:* #${BUILD_NUMBER}\\n\\n${statusMsg}"
+            sh """
+                curl -X POST "${webhookUrl}" \\
+                -H 'Content-Type: application/json' \\
+                -d '{"channel": "${SLACK_CHANNEL}", "username": "Jenkins CI/CD", "attachments": [{"color": "${color}", "text": "${fallbackMsg}"}]}'
+            """
+        } catch (Exception e2) {
+            echo "Fallback Slack notification also failed: ${e2.message}"
+        }
     }
 }
 
