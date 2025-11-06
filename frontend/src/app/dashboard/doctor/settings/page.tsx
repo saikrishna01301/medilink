@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doctorAPI, DoctorProfileData, DoctorProfileUpdate, UserInfoUpdate } from "@/services/api";
 import { APIError } from "@/services/api";
+import { MEDICAL_SPECIALTIES } from "@/utils/medicalSpecialties";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -423,16 +424,21 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Specialty *
                 </label>
-                <input
-                  type="text"
+                <select
                   value={profileInfo.specialty}
                   onChange={(e) =>
                     setProfileInfo({ ...profileInfo, specialty: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   required
-                  placeholder="e.g., Cardiology, General Practice"
-                />
+                >
+                  <option value="">Select a specialty</option>
+                  {MEDICAL_SPECIALTIES.map((specialty) => (
+                    <option key={specialty} value={specialty}>
+                      {specialty}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

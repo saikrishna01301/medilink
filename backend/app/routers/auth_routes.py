@@ -300,24 +300,22 @@ async def user_login(
     )
 
     # Return user data in response to avoid immediate getCurrentUser call
-    return Response(
-        status_code=status.HTTP_200_OK,
-        content=json.dumps({
-            "msg": "Login successful",
-            "user_id": validated_user.id,
-            "user": {
-                "id": validated_user.id,
-                "first_name": validated_user.first_name,
-                "last_name": validated_user.last_name,
-                "email": validated_user.email,
-                "phone": validated_user.phone,
-                "role": role_for_token,
-                "is_patient": is_existing_patient,
-                "accepted_terms": validated_user.accepted_terms,
-            }
-        }),
-        media_type="application/json",
-    )
+    # Note: Cookies are already set on the response parameter, so return a dict
+    # FastAPI will use the response parameter with cookies set
+    return {
+        "msg": "Login successful",
+        "user_id": validated_user.id,
+        "user": {
+            "id": validated_user.id,
+            "first_name": validated_user.first_name,
+            "last_name": validated_user.last_name,
+            "email": validated_user.email,
+            "phone": validated_user.phone,
+            "role": role_for_token,
+            "is_patient": is_existing_patient,
+            "accepted_terms": validated_user.accepted_terms,
+        }
+    }
 
 
 @router.post("/create-patient-account")
@@ -531,4 +529,39 @@ async def refresh_access_token(
 @router.get("/me", response_model=ReadUser)
 async def get_me(current_user = Depends(get_current_user)):
     """Get current authenticated user's information."""
-    return current_user
+    # ReadUser has from_attributes=True, so we can use model_validate
+    # But we need to handle the role enum conversion from UserRoleEnum to UserRole
+    from schemas.user_schema import UserRole
+    
+    # Convert role if present
+    role_value = None
+    if current_user.role:
+        role_value = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+        try:
+            role_value = UserRole(role_value.lower())
+        except (ValueError, AttributeError):
+            role_value = None
+    
+    # Use model_validate with role override
+    try:
+        user_data = ReadUser.model_validate(current_user, from_attributes=True)
+        # Override role if we converted it
+        if role_value is not None:
+            user_data.role = role_value
+        return user_data
+    except Exception as e:
+        # Fallback: manual construction
+        return ReadUser(
+            id=current_user.id,
+            first_name=current_user.first_name,
+            middle_name=current_user.middle_name,
+            last_name=current_user.last_name,
+            email=current_user.email,
+            phone=current_user.phone,
+            emergency_contact=current_user.emergency_contact,
+            role=role_value,
+            is_patient=current_user.is_patient,
+            accepted_terms=current_user.accepted_terms,
+            created_at=current_user.created_at,
+            updated_at=current_user.updated_at,
+        )

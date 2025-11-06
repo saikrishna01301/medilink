@@ -77,3 +77,21 @@ temp/
 *.bak
 *.orig
 
+# SQL migration/seed files (already executed)
+*.sql
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Design files
+*.psd
+prototype/
+
+# Frontend build cache
+.next/
+out/
+dist/
+build/
+*.csv
