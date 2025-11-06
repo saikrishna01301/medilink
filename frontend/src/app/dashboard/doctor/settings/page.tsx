@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doctorAPI, DoctorProfileData, DoctorProfileUpdate, UserInfoUpdate } from "@/services/api";
 import { APIError } from "@/services/api";
 import { MEDICAL_SPECIALTIES } from "@/utils/medicalSpecialties";
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +35,15 @@ export default function SettingsPage() {
     languages_spoken: [] as string[],
   });
 
-  // Form field states for dynamic arrays
   const [newCertification, setNewCertification] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
+  
+  // Profile picture upload state
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoVersion, setPhotoVersion] = useState(0); // For cache-busting
+  const [lastUploadedPhotoUrl, setLastUploadedPhotoUrl] = useState<string | null>(null); // Track last uploaded photo
 
   useEffect(() => {
     loadProfileData();
@@ -212,6 +218,106 @@ export default function SettingsPage() {
     });
   };
 
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Invalid file type. Please upload a JPEG, PNG, or WebP image.");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File size exceeds 5MB limit.");
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await doctorAPI.uploadProfilePicture(file);
+      
+      // Store the uploaded photo URL immediately
+      setLastUploadedPhotoUrl(response.photo_url);
+      
+      // Reload profile data to get updated photo URL
+      await loadProfileData();
+      
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Increment photo version to force image refresh
+      setPhotoVersion(prev => prev + 1);
+      
+      // Update user context with new photo URL (for header display)
+      if (user && response.photo_url) {
+        // Store base URL without cache-busting params
+        setUser({ ...user, photo_url: response.photo_url });
+      }
+      
+      setSuccess("Profile picture uploaded successfully!");
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to upload profile picture");
+      } else {
+        setError("An unexpected error occurred while uploading the picture");
+      }
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!confirm("Are you sure you want to delete your profile picture?")) {
+      return;
+    }
+
+    try {
+      setDeletingPhoto(true);
+      setError(null);
+      setSuccess(null);
+
+      await doctorAPI.deleteProfilePicture();
+      
+      // Clear the last uploaded photo URL
+      setLastUploadedPhotoUrl(null);
+      
+      // Reload profile data
+      await loadProfileData();
+      
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Increment photo version to force image refresh
+      setPhotoVersion(prev => prev + 1);
+      
+      // Update user context to remove photo URL
+      if (user) {
+        setUser({ ...user, photo_url: undefined });
+      }
+      
+      setSuccess("Profile picture deleted successfully!");
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to delete profile picture");
+      } else {
+        setError("An unexpected error occurred while deleting the picture");
+      }
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
@@ -244,6 +350,89 @@ export default function SettingsPage() {
             <p className="text-red-800">{error}</p>
           </div>
         )}
+
+        {/* Profile Picture Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Profile Picture</h2>
+          
+          <div className="flex items-start gap-6">
+            {/* Current Picture */}
+            <div className="flex-shrink-0 relative">
+              {(profileData?.profile?.photo_url || lastUploadedPhotoUrl) ? (
+                <>
+                  <img
+                    key={`photo-${photoVersion}-${profileData?.profile?.photo_url || lastUploadedPhotoUrl}`}
+                    src={`${profileData?.profile?.photo_url || lastUploadedPhotoUrl}?v=${photoVersion}&t=${Date.now()}`}
+                    alt="Profile"
+                    className="w-32 h-32 rounded-full object-cover border-4 border-gray-200"
+                    onError={(e) => {
+                      // Hide image if it fails to load
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                    onLoad={(e) => {
+                      // Show image when it loads successfully
+                      (e.target as HTMLImageElement).style.display = 'block';
+                    }}
+                  />
+                  <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-300 absolute top-0 left-0 -z-10">
+                    <span className="text-gray-400 text-4xl font-semibold">
+                      {profileData?.user?.first_name?.[0]?.toUpperCase() || "D"}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-300">
+                  <span className="text-gray-400 text-4xl font-semibold">
+                    {profileData?.user?.first_name?.[0]?.toUpperCase() || "D"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Upload/Delete Controls */}
+            <div className="flex-1 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Update Profile Picture
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                    className="hidden"
+                    id="photo-upload"
+                  />
+                  <label
+                    htmlFor="photo-upload"
+                    className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer inline-block ${
+                      uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {uploadingPhoto ? "Uploading..." : "Choose File"}
+                  </label>
+                  
+                  {profileData?.profile?.photo_url && (
+                    <button
+                      onClick={handlePhotoDelete}
+                      disabled={deletingPhoto}
+                      className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition ${
+                        deletingPhoto ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {deletingPhoto ? "Deleting..." : "Delete Picture"}
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Supported formats: JPEG, PNG, WebP. Max size: 5MB
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* User Information Section */}
         <div className="bg-white rounded-lg shadow p-6">

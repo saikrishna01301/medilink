@@ -335,5 +335,45 @@ export const doctorAPI = {
 
     return response.json();
   },
+
+  // Upload profile picture
+  uploadProfilePicture: async (file: File): Promise<{ message: string; photo_url: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/doctors/upload-profile-picture`, {
+      method: "POST",
+      credentials: "include", // Important: Include cookies
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to upload profile picture"
+      );
+    }
+
+    return response.json();
+  },
+
+  // Delete profile picture
+  deleteProfilePicture: async (): Promise<{ message: string }> => {
+    const response = await fetch(`${API_BASE_URL}/doctors/profile-picture`, {
+      method: "DELETE",
+      credentials: "include", // Important: Include cookies
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to delete profile picture"
+      );
+    }
+
+    return response.json();
+  },
 };
 

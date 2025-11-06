@@ -1,19 +1,72 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import { doctorAPI } from "@/services/api";
 
 interface DoctorLayoutProps {
   children: React.ReactNode;
 }
 
 export default function DoctorLayout({ children }: DoctorLayoutProps) {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, setUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [loadingPhoto, setLoadingPhoto] = useState(true);
+  const [photoVersion, setPhotoVersion] = useState(0); // For cache-busting
+
+  // Fetch profile picture on mount and when user changes
+  useEffect(() => {
+    const fetchProfilePhoto = async () => {
+      if (user?.role === "doctor" && isAuthenticated && user?.id) {
+        try {
+          setLoadingPhoto(true);
+          const profileData = await doctorAPI.getProfile();
+          if (profileData.profile?.photo_url) {
+            // Store base URL without cache-busting (we'll add it when displaying)
+            const photoUrl = profileData.profile.photo_url;
+            setProfilePhotoUrl(photoUrl);
+            setPhotoVersion(prev => prev + 1);
+            
+            // Update user context with photo_url (base URL only)
+            if (user && user.photo_url !== photoUrl) {
+              setUser({ ...user, photo_url: photoUrl });
+            }
+          } else {
+            setProfilePhotoUrl(null);
+            // Clear photo_url from user context if no photo
+            if (user && user.photo_url) {
+              setUser({ ...user, photo_url: undefined });
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch profile photo:", error);
+          setProfilePhotoUrl(null);
+        } finally {
+          setLoadingPhoto(false);
+        }
+      } else {
+        setLoadingPhoto(false);
+      }
+    };
+
+    fetchProfilePhoto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isAuthenticated]);
+
+  // Also refresh photo when user.photo_url changes (from settings page)
+  useEffect(() => {
+    if (user?.photo_url && user.role === "doctor") {
+      setProfilePhotoUrl(user.photo_url);
+      setPhotoVersion(prev => prev + 1);
+    } else if (!user?.photo_url && user?.role === "doctor") {
+      setProfilePhotoUrl(null);
+    }
+  }, [user?.photo_url]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -96,14 +149,35 @@ export default function DoctorLayout({ children }: DoctorLayoutProps) {
               </button>
 
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
-                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-                  <svg
-                    className="w-6 h-6 text-gray-600"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                  </svg>
+                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden relative">
+                  {profilePhotoUrl || user?.photo_url ? (
+                    <Image
+                      key={`header-photo-${photoVersion}`}
+                      src={`${profilePhotoUrl || user.photo_url}?v=${photoVersion}&t=${Date.now()}`}
+                      alt="Profile"
+                      width={40}
+                      height={40}
+                      className="w-full h-full object-cover"
+                      unoptimized // Bypass Next.js image optimization for external URLs
+                      onError={(e) => {
+                        // Hide image if it fails to load, show placeholder
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        // Show image when it loads successfully
+                        (e.target as HTMLImageElement).style.display = 'block';
+                      }}
+                    />
+                  ) : null}
+                  {(!profilePhotoUrl && !user?.photo_url) && (
+                    <svg
+                      className="w-6 h-6 text-gray-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
+                    </svg>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">

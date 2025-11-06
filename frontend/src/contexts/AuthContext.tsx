@@ -9,6 +9,7 @@ export interface User {
   email: string;
   phone: string;
   role: "doctor" | "patient" | "insurer" | "pharmacist";
+  photo_url?: string; // Profile picture URL
 }
 
 interface AuthContextType {

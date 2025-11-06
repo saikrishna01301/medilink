@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Cookie
+from fastapi import APIRouter, Depends, HTTPException, status, Cookie, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.crud import auth_crud, doctor_crud
 from schemas import DoctorProfileUpdate, DoctorProfileRead
-from services import verify_access_token
+from services import verify_access_token, get_storage_service
 from typing import Dict, Any
+import uuid
+import os
 
 router = APIRouter()
 
@@ -122,4 +124,112 @@ async def update_user_info(
     )
     
     return profile_data
+
+
+@router.post("/upload-profile-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """Upload a profile picture for the doctor"""
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (max 5MB)
+    file_content = await file.read()
+    if len(file_content) > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds 5MB limit"
+        )
+    
+    try:
+        # Get current profile to check for existing photo
+        profile = await doctor_crud.get_doctor_profile(current_user.id, session)
+        
+        # Delete old profile picture if it exists
+        if profile and profile.photo_url:
+            storage_service = get_storage_service()
+            old_file_path = storage_service.extract_file_path_from_url(profile.photo_url)
+            if old_file_path:
+                try:
+                    await storage_service.delete_file(old_file_path)
+                except Exception as e:
+                    # Log error but continue with upload
+                    print(f"Warning: Failed to delete old profile picture: {e}")
+        
+        # Generate unique filename using UUID
+        file_extension = os.path.splitext(file.filename)[1] or ".jpg"
+        unique_filename = f"doctor-profiles/{current_user.id}/{uuid.uuid4()}{file_extension}"
+        
+        # Upload to GCP Storage
+        storage_service = get_storage_service()
+        public_url = await storage_service.upload_file(
+            file_content,
+            unique_filename,
+            content_type=file.content_type
+        )
+        
+        # Update doctor profile with new photo URL
+        update_data = {"photo_url": public_url}
+        await doctor_crud.update_doctor_profile(
+            current_user.id, update_data, session
+        )
+        
+        return {
+            "message": "Profile picture uploaded successfully",
+            "photo_url": public_url
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload profile picture: {str(e)}"
+        )
+
+
+@router.delete("/profile-picture")
+async def delete_profile_picture(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """Delete the doctor's profile picture"""
+    try:
+        # Get current profile
+        profile = await doctor_crud.get_doctor_profile(current_user.id, session)
+        
+        if not profile or not profile.photo_url:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No profile picture found"
+            )
+        
+        # Extract file path from URL and delete from storage
+        photo_url = profile.photo_url
+        storage_service = get_storage_service()
+        file_path = storage_service.extract_file_path_from_url(photo_url)
+        
+        if file_path:
+            # Delete from storage
+            await storage_service.delete_file(file_path)
+        
+        # Clear photo_url in database
+        update_data = {"photo_url": None}
+        await doctor_crud.update_doctor_profile(
+            current_user.id, update_data, session
+        )
+        
+        return {"message": "Profile picture deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete profile picture: {str(e)}"
+        )
 

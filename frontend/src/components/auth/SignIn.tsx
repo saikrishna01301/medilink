@@ -104,6 +104,22 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
         }
       }
       
+      // For doctors, fetch profile to get photo_url
+      let photoUrl: string | undefined = undefined;
+      if (userData.role.toLowerCase() === "doctor") {
+        try {
+          const { doctorAPI } = await import("@/services/api");
+          const profileData = await doctorAPI.getProfile();
+          if (profileData.profile?.photo_url) {
+            // Store base URL without cache-busting params (we'll add them when displaying)
+            photoUrl = profileData.profile.photo_url;
+          }
+        } catch (profileError) {
+          console.error("Failed to fetch doctor profile:", profileError);
+          // Continue without photo_url
+        }
+      }
+      
       // Map role to include pharmacist
       let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
       const userRole = userData.role.toLowerCase();
@@ -119,6 +135,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
         email: userData.email,
         phone: userData.phone,
         role: role,
+        photo_url: photoUrl,
       };
       
       // Store user in context
@@ -170,6 +187,21 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
       try {
         const userData = await authAPI.getCurrentUser();
         
+        // For doctors, fetch profile to get photo_url
+        let photoUrl: string | undefined = undefined;
+        if (userData.role.toLowerCase() === "doctor") {
+          try {
+            const { doctorAPI } = await import("@/services/api");
+            const profileData = await doctorAPI.getProfile();
+            if (profileData.profile?.photo_url) {
+              // Store base URL without cache-busting params
+              photoUrl = profileData.profile.photo_url;
+            }
+          } catch (profileError) {
+            console.error("Failed to fetch doctor profile:", profileError);
+          }
+        }
+        
         // Map role to include pharmacist
         let role: "doctor" | "patient" | "insurer" | "pharmacist" = "patient";
         const userRole = userData.role.toLowerCase();
@@ -185,6 +217,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
           email: userData.email,
           phone: userData.phone,
           role: role,
+          photo_url: photoUrl,
         };
         
         // Store user in context

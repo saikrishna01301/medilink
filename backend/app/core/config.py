@@ -22,6 +22,13 @@ class config(BaseSettings):
     DB_NAME: str = os.getenv("DB_NAME", "")
     # Set to true if using Private IP (requires VPC access)
     USE_PRIVATE_IP: bool = os.getenv("USE_PRIVATE_IP", "false").lower() == "true"
+    
+    # GCP Cloud Storage Configuration
+    GCP_BUCKET_NAME: str = os.getenv("GCP_BUCKET_NAME", "")
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
+    GCP_STORAGE_KEY_FILE: str = os.getenv("GCP_STORAGE_KEY_FILE", "")  # Path to service account JSON key file
+    # If key file path is not provided, will use default credentials
+    USE_DEFAULT_CREDENTIALS: bool = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
 
 config = config()
