@@ -74,10 +74,9 @@ async def update_doctor_profile(
     if not profile:
         return None
     
-    # Update fields
+    # Update fields (allow explicit clearing by passing None)
     for key, value in profile_data.items():
-        if value is not None:  # Only update provided fields
-            setattr(profile, key, value)
+        setattr(profile, key, value)
     
     profile.updated_at = datetime.now(timezone.utc)
     await session.commit()

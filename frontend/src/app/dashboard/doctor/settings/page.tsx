@@ -28,7 +28,6 @@ export default function SettingsPage() {
   const [profileInfo, setProfileInfo] = useState({
     specialty: "",
     bio: "",
-    photo_url: "",
     years_of_experience: "",
     medical_license_number: "",
     board_certifications: [] as string[],
@@ -84,12 +83,14 @@ export default function SettingsPage() {
         setProfileInfo({
           specialty: data.profile.specialty || "",
           bio: data.profile.bio || "",
-          photo_url: data.profile.photo_url || "",
           years_of_experience: data.profile.years_of_experience?.toString() || "",
           medical_license_number: data.profile.medical_license_number || "",
           board_certifications: data.profile.board_certifications || [],
           languages_spoken: data.profile.languages_spoken || [],
         });
+        setLastUploadedPhotoUrl(data.profile.photo_url || null);
+      } else {
+        setLastUploadedPhotoUrl(null);
       }
     } catch (err) {
       if (err instanceof APIError) {
@@ -141,7 +142,6 @@ export default function SettingsPage() {
       const updateData: DoctorProfileUpdate = {
         specialty: profileInfo.specialty,
         bio: profileInfo.bio || undefined,
-        photo_url: profileInfo.photo_url || undefined,
         years_of_experience: profileInfo.years_of_experience
           ? parseInt(profileInfo.years_of_experience)
           : undefined,
@@ -162,7 +162,6 @@ export default function SettingsPage() {
         setProfileInfo({
           specialty: updated.profile.specialty || "",
           bio: updated.profile.bio || "",
-          photo_url: updated.profile.photo_url || "",
           years_of_experience: updated.profile.years_of_experience?.toString() || "",
           medical_license_number: updated.profile.medical_license_number || "",
           board_certifications: updated.profile.board_certifications || [],
@@ -289,6 +288,17 @@ export default function SettingsPage() {
 
       await doctorAPI.deleteProfilePicture();
       
+      // Optimistically clear profile photo from cached data
+      setProfileData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          profile: prev.profile
+            ? { ...prev.profile, photo_url: null }
+            : prev.profile,
+        };
+      });
+      
       // Clear the last uploaded photo URL
       setLastUploadedPhotoUrl(null);
       
@@ -330,6 +340,13 @@ export default function SettingsPage() {
     );
   }
 
+  const displayPhotoUrl =
+    lastUploadedPhotoUrl ??
+    profileData?.profile?.photo_url ??
+    null;
+
+  const hasProfilePhoto = Boolean(displayPhotoUrl);
+
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
       <div className="space-y-6">
@@ -358,11 +375,11 @@ export default function SettingsPage() {
           <div className="flex items-start gap-6">
             {/* Current Picture */}
             <div className="flex-shrink-0 relative">
-              {(profileData?.profile?.photo_url || lastUploadedPhotoUrl) ? (
+              {hasProfilePhoto ? (
                 <>
                   <img
-                    key={`photo-${photoVersion}-${profileData?.profile?.photo_url || lastUploadedPhotoUrl}`}
-                    src={`${profileData?.profile?.photo_url || lastUploadedPhotoUrl}?v=${photoVersion}&t=${Date.now()}`}
+                    key={`photo-${photoVersion}-${displayPhotoUrl}`}
+                    src={`${displayPhotoUrl}?v=${photoVersion}&t=${Date.now()}`}
                     alt="Profile"
                     className="w-32 h-32 rounded-full object-cover border-4 border-gray-200"
                     onError={(e) => {
@@ -411,10 +428,14 @@ export default function SettingsPage() {
                       uploadingPhoto ? "opacity-50 cursor-not-allowed" : ""
                     }`}
                   >
-                    {uploadingPhoto ? "Uploading..." : "Choose File"}
+                    {uploadingPhoto 
+                      ? "Uploading..." 
+                      : hasProfilePhoto
+                        ? "Update Picture" 
+                        : "Choose File"}
                   </label>
                   
-                  {profileData?.profile?.photo_url && (
+                  {hasProfilePhoto && (
                     <button
                       onClick={handlePhotoDelete}
                       disabled={deletingPhoto}
@@ -648,12 +669,10 @@ export default function SettingsPage() {
                   </label>
                   <input
                     type="url"
-                    value={profileInfo.photo_url}
-                    onChange={(e) =>
-                      setProfileInfo({ ...profileInfo, photo_url: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                    placeholder="https://example.com/photo.jpg"
+                    value={displayPhotoUrl ?? ""}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                    placeholder="No profile photo uploaded"
                   />
                 </div>
                 <div>

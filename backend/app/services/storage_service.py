@@ -158,6 +158,31 @@ class StorageService:
         # For uniform bucket-level access, construct URL directly
         return f"https://storage.googleapis.com/{self.bucket_name}/{file_path}"
     
+    async def delete_files_by_prefix(self, prefix: str) -> int:
+        """
+        Delete all files with a given prefix (e.g., all files in a directory)
+        
+        Args:
+            prefix: Prefix/path prefix to match (e.g., "doctor-profiles/1/")
+        
+        Returns:
+            Number of files deleted
+        """
+        try:
+            # list_blobs is synchronous, so we run it in a thread
+            blobs = await asyncio.to_thread(lambda: list(self.bucket.list_blobs(prefix=prefix)))
+            deleted_count = 0
+            for blob in blobs:
+                try:
+                    await asyncio.to_thread(blob.delete)
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Warning: Failed to delete blob {blob.name}: {e}")
+            return deleted_count
+        except Exception as e:
+            print(f"Warning: Failed to list/delete files with prefix {prefix}: {e}")
+            return 0
+    
     def extract_file_path_from_url(self, url: str) -> Optional[str]:
         """
         Extract file path from GCP Storage public URL

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Cookie, UploadFil
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.crud import auth_crud, doctor_crud
+from db.models.doctor_model import MedicalSpecialtyEnum
 from schemas import DoctorProfileUpdate, DoctorProfileRead
 from services import verify_access_token, get_storage_service
 from typing import Dict, Any
@@ -153,34 +154,42 @@ async def upload_profile_picture(
         # Get current profile to check for existing photo
         profile = await doctor_crud.get_doctor_profile(current_user.id, session)
         
-        # Delete old profile picture if it exists
-        if profile and profile.photo_url:
-            storage_service = get_storage_service()
-            old_file_path = storage_service.extract_file_path_from_url(profile.photo_url)
-            if old_file_path:
-                try:
-                    await storage_service.delete_file(old_file_path)
-                except Exception as e:
-                    # Log error but continue with upload
-                    print(f"Warning: Failed to delete old profile picture: {e}")
+        storage_service = get_storage_service()
+        
+        # Delete ALL old profile pictures for this doctor
+        # This ensures we clean up any orphaned files from previous uploads
+        doctor_profile_prefix = f"doctor-profiles/{current_user.id}/"
+        deleted_count = await storage_service.delete_files_by_prefix(doctor_profile_prefix)
+        
+        if deleted_count > 0:
+            print(f"Deleted {deleted_count} old profile picture(s) for doctor {current_user.id}")
         
         # Generate unique filename using UUID
         file_extension = os.path.splitext(file.filename)[1] or ".jpg"
         unique_filename = f"doctor-profiles/{current_user.id}/{uuid.uuid4()}{file_extension}"
         
         # Upload to GCP Storage
-        storage_service = get_storage_service()
         public_url = await storage_service.upload_file(
             file_content,
             unique_filename,
             content_type=file.content_type
         )
         
-        # Update doctor profile with new photo URL
+        # Update or create doctor profile with new photo URL
         update_data = {"photo_url": public_url}
-        await doctor_crud.update_doctor_profile(
+        updated_profile = await doctor_crud.update_doctor_profile(
             current_user.id, update_data, session
         )
+        
+        if not updated_profile:
+            # Profile doesn't exist yet – create it with the photo URL and a default specialty
+            create_data = {
+                "photo_url": public_url,
+                "specialty": MedicalSpecialtyEnum.family_medicine_physician.value,
+            }
+            await doctor_crud.create_doctor_profile(
+                create_data, current_user.id, session
+            )
         
         return {
             "message": "Profile picture uploaded successfully",
