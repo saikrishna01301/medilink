@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { KeyboardEvent, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { doctorAPI, DoctorListItem, APIError } from "@/services/api";
 import { formatSpecialty } from "@/utils/formatSpecialty";
@@ -10,12 +10,12 @@ export default function DoctorsPage() {
   const [selectedSpecialty, setSelectedSpecialty] =
     useState<string>("All Specialties");
   const [doctors, setDoctors] = useState<DoctorListItem[]>([]);
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([
     "All Specialties",
   ]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const mergeSpecialties = useCallback((incoming: Array<string | null | undefined>) => {
     setSpecialtyOptions((prev) => {
@@ -42,6 +42,7 @@ export default function DoctorsPage() {
     async (filters?: { search?: string; specialty?: string }) => {
       setIsLoading(true);
       setError(null);
+      setHasSearched(true);
 
       try {
         const data = await doctorAPI.listDoctors(filters);
@@ -82,35 +83,31 @@ export default function DoctorsPage() {
     };
   }, [mergeSpecialties]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 400);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchQuery]);
-
-  useEffect(() => {
-    const specialtyFilter =
-      selectedSpecialty !== "All Specialties" ? selectedSpecialty : undefined;
-    const searchFilter = debouncedSearchQuery.trim()
-      ? debouncedSearchQuery.trim()
-      : undefined;
-
-    fetchDoctors({ specialty: specialtyFilter, search: searchFilter });
-  }, [debouncedSearchQuery, fetchDoctors, selectedSpecialty]);
-
   const filteredDoctors = doctors;
 
-  const handleRefresh = () => {
+  const buildFilters = useCallback(() => {
     const specialtyFilter =
       selectedSpecialty !== "All Specialties" ? selectedSpecialty : undefined;
-    const searchFilter = debouncedSearchQuery.trim()
-      ? debouncedSearchQuery.trim()
-      : undefined;
-    fetchDoctors({ specialty: specialtyFilter, search: searchFilter });
+    const searchFilter = searchQuery.trim() ? searchQuery.trim() : undefined;
+
+    return { specialty: specialtyFilter, search: searchFilter };
+  }, [searchQuery, selectedSpecialty]);
+
+  const handleSearch = () => {
+    const filters = buildFilters();
+    fetchDoctors(filters);
+  };
+
+  const handleRefresh = () => {
+    const filters = buildFilters();
+    fetchDoctors(filters);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleSearch();
+    }
   };
 
   const handleBookAppointment = (doctorId: number) => {
@@ -147,7 +144,7 @@ export default function DoctorsPage() {
             </div>
             <button
               onClick={handleRefresh}
-              disabled={isLoading}
+              disabled={isLoading || !hasSearched}
               className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Refresh
@@ -156,27 +153,37 @@ export default function DoctorsPage() {
 
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-2">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search by doctor name, specialty, or keyword"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-12 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <svg
-                  className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by doctor name, specialty, or keyword"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-12 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </svg>
+                  <svg
+                    className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                <button
+                  onClick={handleSearch}
+                  disabled={isLoading}
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoading ? "Searching..." : "Search"}
+                </button>
               </div>
             </div>
             <div>
@@ -196,7 +203,7 @@ export default function DoctorsPage() {
             </div>
           </div>
 
-          {error && (
+          {error && hasSearched && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <div className="flex items-start justify-between gap-4">
                 <p>{error}</p>
@@ -214,10 +221,12 @@ export default function DoctorsPage() {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
                 {isLoading
-                  ? "Loading doctors..."
-                  : `Search Results (${filteredDoctors.length})`}
+                  ? "Searching doctors..."
+                  : hasSearched
+                    ? `Search Results (${filteredDoctors.length})`
+                    : "Search Results"}
               </h3>
-              {!isLoading && (
+              {hasSearched && !isLoading && (
                 <span className="text-sm text-gray-500">
                   Showing {filteredDoctors.length}{" "}
                   {filteredDoctors.length === 1 ? "doctor" : "doctors"}
@@ -246,6 +255,10 @@ export default function DoctorsPage() {
                     <div className="h-10 w-full rounded bg-gray-200" />
                   </div>
                 ))}
+              </div>
+            ) : !hasSearched ? (
+              <div className="py-12 text-center text-gray-500">
+                <p>Use the search and filters to find doctors.</p>
               </div>
             ) : filteredDoctors.length === 0 ? (
               <div className="py-12 text-center text-gray-500">
