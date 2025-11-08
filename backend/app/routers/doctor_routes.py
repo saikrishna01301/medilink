@@ -1,18 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Cookie, UploadFile, File
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Cookie,
+    UploadFile,
+    File,
+    Query,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.crud import auth_crud, doctor_crud
-from db.models.doctor_model import MedicalSpecialtyEnum
-from schemas import DoctorProfileUpdate, DoctorProfileRead
+from schemas import DoctorProfileUpdate, DoctorProfileRead, DoctorListItem
 from services import verify_access_token, get_storage_service
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import uuid
 import os
 
 router = APIRouter()
 
 
-# Dependency to get current user from access token
+# Dependency to get current doctor from access token
 async def get_current_user(
     access_token: str = Cookie(None), session: AsyncSession = Depends(get_session)
 ):
@@ -39,6 +47,54 @@ async def get_current_user(
         )
 
     return user
+
+
+# Generic authenticated user dependency (patients/providers)
+async def get_authenticated_user(
+    access_token: str = Cookie(None), session: AsyncSession = Depends(get_session)
+):
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    payload = await verify_access_token(access_token)
+    user_id = int(payload.get("sub"))
+
+    user = await auth_crud.get_user_by_id(user_id, session)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    return user
+
+
+@router.get("/", response_model=List[DoctorListItem])
+async def list_doctors(
+    search: Optional[str] = Query(None, description="Search by name, email, or specialty"),
+    specialty: Optional[str] = Query(None, description="Filter by specialty"),
+    session: AsyncSession = Depends(get_session),
+    _: Any = Depends(get_authenticated_user),
+):
+    """List all doctors with profile information."""
+    doctors = await doctor_crud.list_doctors_with_profiles(
+        session, search=search, specialty=specialty
+    )
+    return doctors
+
+
+@router.get("/specialties", response_model=List[str])
+async def list_specialties(
+    session: AsyncSession = Depends(get_session),
+    _: Any = Depends(get_authenticated_user),
+):
+    """Return distinct list of doctor specialties available."""
+    specialties = await doctor_crud.list_distinct_specialties(session)
+    return specialties
+
+
 
 
 @router.get("/profile", response_model=Dict[str, Any])
@@ -185,7 +241,7 @@ async def upload_profile_picture(
             # Profile doesn't exist yet – create it with the photo URL and a default specialty
             create_data = {
                 "photo_url": public_url,
-                "specialty": MedicalSpecialtyEnum.family_medicine_physician.value,
+                "specialty": "General Practice",
             }
             await doctor_crud.create_doctor_profile(
                 create_data, current_user.id, session

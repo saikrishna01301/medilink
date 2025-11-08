@@ -1,7 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import DoctorProfile, User
-from typing import Optional, Dict, Any
+from db.models.user_model import UserRoleEnum
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
 
@@ -105,3 +106,73 @@ async def update_user_info(
     await session.refresh(user)
     return user
 
+
+async def list_doctors_with_profiles(
+    session: AsyncSession,
+    *,
+    search: Optional[str] = None,
+    specialty: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Return all doctors with their profile information."""
+    stmt = (
+        select(User, DoctorProfile)
+        .join(DoctorProfile, DoctorProfile.user_id == User.id, isouter=True)
+        .where(User.role == UserRoleEnum.doctor)
+        .order_by(func.lower(User.last_name), func.lower(User.first_name))
+    )
+
+    if specialty:
+        stmt = stmt.where(
+            func.lower(DoctorProfile.specialty) == func.lower(specialty)
+        )
+
+    if search:
+        search_pattern = f"%{search.lower()}%"
+        full_name = func.concat(
+            func.coalesce(func.lower(User.first_name), ""),
+            " ",
+            func.coalesce(func.lower(User.last_name), "")
+        )
+        stmt = stmt.where(
+            or_(
+                func.lower(User.first_name).like(search_pattern),
+                func.lower(User.last_name).like(search_pattern),
+                full_name.like(search_pattern),
+                func.lower(User.email).like(search_pattern),
+                func.lower(func.coalesce(DoctorProfile.specialty, "")).like(search_pattern),
+            )
+        )
+
+    result = await session.execute(stmt)
+
+    doctors: List[Dict[str, Any]] = []
+    for user, profile in result.all():
+        doctors.append(
+            {
+                "id": user.id,
+                "first_name": user.first_name,
+                "middle_name": user.middle_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "phone": user.phone,
+                "specialty": profile.specialty if profile else None,
+                "bio": profile.bio if profile else None,
+                "photo_url": profile.photo_url if profile else None,
+                "years_of_experience": profile.years_of_experience if profile else None,
+                "languages_spoken": profile.languages_spoken if profile else [],
+                "board_certifications": profile.board_certifications if profile else [],
+            }
+        )
+
+    return doctors
+
+
+async def list_distinct_specialties(session: AsyncSession) -> List[str]:
+    """Return distinct doctor specialties present in the database."""
+    stmt = (
+        select(func.distinct(DoctorProfile.specialty))
+        .where(DoctorProfile.specialty.is_not(None))
+        .order_by(func.lower(DoctorProfile.specialty))
+    )
+    result = await session.execute(stmt)
+    return [row[0] for row in result if row[0]]

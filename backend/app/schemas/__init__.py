@@ -5,6 +5,7 @@ from .doctor_schema import (
     DoctorProfileUpdate,
     DoctorProfileRead,
     DoctorProfileWithUser,
+    DoctorListItem,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     DoctorProfileUpdate,
     DoctorProfileRead,
     DoctorProfileWithUser,
+    DoctorListItem,
 ]

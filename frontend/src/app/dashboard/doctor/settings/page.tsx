@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doctorAPI, DoctorProfileData, DoctorProfileUpdate, UserInfoUpdate } from "@/services/api";
 import { APIError } from "@/services/api";
-import { MEDICAL_SPECIALTIES } from "@/utils/medicalSpecialties";
+import { formatSpecialty } from "@/utils/formatSpecialty";
 
 export default function SettingsPage() {
   const { user, setUser } = useAuth();
@@ -34,6 +34,7 @@ export default function SettingsPage() {
     languages_spoken: [] as string[],
   });
 
+  const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([]);
   const [newCertification, setNewCertification] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
   
@@ -47,6 +48,30 @@ export default function SettingsPage() {
   useEffect(() => {
     loadProfileData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSpecialties = async () => {
+      try {
+        const specialties = await doctorAPI.listSpecialties();
+        if (!isMounted) return;
+        setSpecialtyOptions(
+          specialties
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value))
+        );
+      } catch {
+        // Ignore, suggestions are optional
+      }
+    };
+
+    fetchSpecialties();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Populate user info from auth context as initial fallback
@@ -88,6 +113,15 @@ export default function SettingsPage() {
           board_certifications: data.profile.board_certifications || [],
           languages_spoken: data.profile.languages_spoken || [],
         });
+        const profileSpecialty = data.profile.specialty;
+        if (profileSpecialty) {
+          setSpecialtyOptions((prev) => {
+            if (prev.includes(profileSpecialty)) {
+              return prev;
+            }
+            return [...prev, profileSpecialty];
+          });
+        }
         setLastUploadedPhotoUrl(data.profile.photo_url || null);
       } else {
         setLastUploadedPhotoUrl(null);
@@ -328,6 +362,30 @@ export default function SettingsPage() {
     }
   };
 
+  const displayPhotoUrl =
+    lastUploadedPhotoUrl ??
+    profileData?.profile?.photo_url ??
+    null;
+
+  const hasProfilePhoto = Boolean(displayPhotoUrl);
+
+  const specialtyChoices = useMemo(() => {
+    const unique = new Set(
+      specialtyOptions
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+    );
+
+    const current = profileInfo.specialty.trim();
+    if (current.length > 0) {
+      unique.add(current);
+    }
+
+    return Array.from(unique).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }, [specialtyOptions, profileInfo.specialty]);
+
   if (loading) {
     return (
       <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
@@ -339,13 +397,6 @@ export default function SettingsPage() {
       </main>
     );
   }
-
-  const displayPhotoUrl =
-    lastUploadedPhotoUrl ??
-    profileData?.profile?.photo_url ??
-    null;
-
-  const hasProfilePhoto = Boolean(displayPhotoUrl);
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
@@ -634,21 +685,25 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Specialty *
                 </label>
-                <select
+                <input
+                  list="doctor-specialties"
                   value={profileInfo.specialty}
                   onChange={(e) =>
                     setProfileInfo({ ...profileInfo, specialty: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="Select or type your specialty"
                   required
-                >
-                  <option value="">Select a specialty</option>
-                  {MEDICAL_SPECIALTIES.map((specialty) => (
-                    <option key={specialty} value={specialty}>
-                      {specialty}
-                    </option>
+                />
+                <datalist id="doctor-specialties">
+                  {specialtyChoices.map((specialty) => (
+                    <option
+                      key={specialty}
+                      value={specialty}
+                      label={formatSpecialty(specialty)}
+                    />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div>
@@ -817,7 +872,7 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
                 <p className="text-gray-900 text-base py-2">
-                  {profileData?.profile?.specialty || "—"}
+                  {formatSpecialty(profileData?.profile?.specialty) || "—"}
                 </p>
               </div>
               <div>

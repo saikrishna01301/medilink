@@ -270,8 +270,72 @@ export interface UserInfoUpdate {
   emergency_contact?: string;
 }
 
+export interface DoctorListItem {
+  id: number;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  specialty?: string | null;
+  bio?: string | null;
+  photo_url?: string | null;
+  years_of_experience?: number | null;
+  languages_spoken: string[];
+  board_certifications: string[];
+}
+
 // Doctor API Functions
 export const doctorAPI = {
+  // List doctors for discovery
+  listDoctors: async (
+    params?: { search?: string; specialty?: string }
+  ): Promise<DoctorListItem[]> => {
+    const query = new URLSearchParams();
+    if (params?.search) {
+      query.append("search", params.search);
+    }
+    if (params?.specialty && params.specialty !== "All Specialties") {
+      query.append("specialty", params.specialty);
+    }
+
+    const url = query.toString()
+      ? `${API_BASE_URL}/doctors?${query.toString()}`
+      : `${API_BASE_URL}/doctors`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to fetch doctors"
+      );
+    }
+
+    return response.json();
+  },
+
+  listSpecialties: async (): Promise<string[]> => {
+    const response = await fetch(`${API_BASE_URL}/doctors/specialties`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to fetch specialties"
+      );
+    }
+
+    return response.json();
+  },
+
   // Get doctor profile
   getProfile: async (): Promise<DoctorProfileData> => {
     const response = await fetch(`${API_BASE_URL}/doctors/profile`, {
