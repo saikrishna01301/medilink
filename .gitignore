@@ -3,7 +3,6 @@
 .env.*
 *.env
 !.env.example
-*.md
 
 # GCP Service Account Keys
 gcp-key.json
