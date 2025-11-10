@@ -1,0 +1,88 @@
+graph TD
+  subgraph Identity
+    USERS["users"]
+    SESSIONS["sessions"]
+    OTP["otp_store"]
+    DOCTORPROFILE["doctor_profiles"]
+  end
+
+  subgraph Scheduling
+    APPTS["appointments"]
+    RELS["patient_doctor_relationships"]
+    LEGACYINS["patient_insurance"]
+  end
+
+  subgraph DocumentHub
+    DOCS["stored_documents"]
+    SIGS["digital_signatures"]
+    DOCLINKS["document_links"]
+  end
+
+  subgraph DoctorCareer["Doctor Career"]
+    EDU["doctor_education_history"]
+    EMP["doctor_employment_history"]
+    CERTS["doctor_certifications"]
+    PUBS["doctor_publications"]
+    AWARDS["doctor_awards"]
+    MEMBERS["doctor_memberships"]
+    MEDIA["doctor_media_assets"]
+  end
+
+  subgraph PatientRecords["Patient Records"]
+    PATDOCS["patient_documents"]
+    POLICIES["patient_insurance_policies"]
+    LABS["patient_lab_reports"]
+    RX["patient_prescription_records"]
+    FIN["patient_financial_documents"]
+  end
+
+  USERS -->|has| SESSIONS
+  USERS -->|has| OTP
+  USERS -->|has| DOCTORPROFILE
+
+  USERS -->|books| APPTS
+  USERS -->|hosts| APPTS
+  USERS -->|relates| RELS
+  USERS -->|holds| LEGACYINS
+
+  USERS -->|owns| DOCS
+  USERS -->|uploads| DOCS
+  USERS -->|signs| SIGS
+
+  DOCS -->|evidence for| DOCLINKS
+  DOCS -->|supports| SIGS
+
+  DOCTORPROFILE --> EDU
+  DOCTORPROFILE --> EMP
+  DOCTORPROFILE --> CERTS
+  DOCTORPROFILE --> PUBS
+  DOCTORPROFILE --> AWARDS
+  DOCTORPROFILE --> MEMBERS
+  DOCTORPROFILE --> MEDIA
+
+  EDU -->|uses doc| DOCS
+  EMP -->|uses doc| DOCS
+  CERTS -->|uses doc| DOCS
+  PUBS -->|uses doc| DOCS
+  AWARDS -->|uses doc| DOCS
+  MEMBERS -->|uses doc| DOCS
+  MEDIA -->|uses doc| DOCS
+
+  USERS -->|patient| PATDOCS
+  USERS -->|patient| POLICIES
+  USERS -->|patient| LABS
+  USERS -->|patient| RX
+  USERS -->|patient| FIN
+  USERS -->|doctor| LABS
+  USERS -->|doctor| RX
+
+  PATDOCS -->|backed by| DOCS
+  POLICIES -->|card| DOCS
+  LABS -->|result file| DOCS
+  RX -->|prescription PDF| DOCS
+  FIN -->|statement| DOCS
+
+  APPTS -->|drives| LABS
+  APPTS -->|drives| RX
+  APPTS -->|uploads| PATDOCS
+
