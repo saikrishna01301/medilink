@@ -1,9 +1,12 @@
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, func, Enum as SQLEnum
 from datetime import datetime
 from db.base import Base
 import enum
+
+if TYPE_CHECKING:
+    from .google_calendar_model import GoogleCalendarCredential
 
 
 # Enum for user roles matching database ENUM type
@@ -42,3 +45,8 @@ class User(Base):
     otp_codes: Mapped[List["OTPStore"]] = relationship(back_populates="user")
     # Link to doctor profile (one-to-one)
     doctor_profile: Mapped[Optional["DoctorProfile"]] = relationship(back_populates="user", uselist=False)
+    # Google calendar credentials (zero or one per user)
+    google_calendar_credentials: Mapped[List["GoogleCalendarCredential"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
