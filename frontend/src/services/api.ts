@@ -285,6 +285,45 @@ export interface DoctorListItem {
   board_certifications: string[];
 }
 
+export interface CalendarEventDateTime {
+  date?: string;
+  dateTime?: string;
+  timeZone?: string;
+}
+
+export interface GoogleCalendarEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  start?: CalendarEventDateTime;
+  end?: CalendarEventDateTime;
+  location?: string;
+  colorId?: string;
+  status?: string;
+  htmlLink?: string;
+  [key: string]: unknown;
+}
+
+export interface CalendarEventsResponse {
+  primary: GoogleCalendarEvent[];
+  holidays: GoogleCalendarEvent[];
+}
+
+export interface CreateCalendarEventRequest {
+  summary: string;
+  description?: string;
+  start: CalendarEventDateTime;
+  end: CalendarEventDateTime;
+  location?: string;
+  colorId?: string;
+  attendees?: Array<{ email: string }>;
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: Array<{ method: string; minutes: number }>;
+  };
+  [key: string]: unknown;
+}
+
 // Doctor API Functions
 export const doctorAPI = {
   // List doctors for discovery
@@ -434,6 +473,63 @@ export const doctorAPI = {
       throw new APIError(
         response.status,
         error.detail || "Failed to delete profile picture"
+      );
+    }
+
+    return response.json();
+  },
+};
+
+export const calendarAPI = {
+  listEvents: async (params?: {
+    timeMin?: string;
+    timeMax?: string;
+    includeHolidays?: boolean;
+    maxResults?: number;
+  }): Promise<CalendarEventsResponse> => {
+    const query = new URLSearchParams();
+    if (params?.timeMin) query.append("time_min", params.timeMin);
+    if (params?.timeMax) query.append("time_max", params.timeMax);
+    if (params?.includeHolidays) query.append("include_holidays", "true");
+    if (params?.maxResults) query.append("max_results", params.maxResults.toString());
+
+    const url = query.toString()
+      ? `${API_BASE_URL}/calendar/google/events?${query.toString()}`
+      : `${API_BASE_URL}/calendar/google/events`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to fetch calendar events"
+      );
+    }
+
+    return response.json();
+  },
+
+  createEvent: async (
+    payload: CreateCalendarEventRequest
+  ): Promise<GoogleCalendarEvent> => {
+    const response = await fetch(`${API_BASE_URL}/calendar/google/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new APIError(
+        response.status,
+        error.detail || "Failed to create calendar event"
       );
     }
 

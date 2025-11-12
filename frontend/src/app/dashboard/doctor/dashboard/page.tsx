@@ -1,51 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 
+import CalendarWidget from "@/components/doctor/CalendarWidget";
+
 export default function DoctorDashboardContent() {
   const { user: _user } = useAuth();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-
-  // Generate calendar days
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-
-  const calendarDays = [];
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    calendarDays.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    calendarDays.push(i);
-  }
-
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentMonth(
-      new Date(year, month + (direction === "next" ? 1 : -1), 1)
-    );
-  };
-
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
-  const weekDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
@@ -245,120 +206,17 @@ export default function DoctorDashboardContent() {
         </div>
 
         {/* Row 2 - Column 3: Appointments Calendar */}
-        <div className="bg-white rounded-lg shadow p-3 flex flex-col overflow-hidden" style={{ gridRow: "2 / 3", gridColumn: "3 / 4", height: "100%" }}>
+        <div
+          className="bg-white rounded-lg shadow p-3 flex flex-col"
+          style={{ gridRow: "2 / 3", gridColumn: "3 / 4" }}
+        >
           <div className="flex items-center gap-2 mb-2">
-            <Image
-              src="/icons/time.svg"
-              alt="Appointments"
-              width={20}
-              height={20}
-            />
+            <Image src="/icons/time.svg" alt="Appointments" width={20} height={20} />
             <h3 className="text-base font-semibold text-gray-900">
               Appointments
             </h3>
           </div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => navigateMonth("prev")}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-              <span className="text-xs font-medium text-gray-900">
-                {monthNames[month]} {year}
-              </span>
-              <button
-                onClick={() => navigateMonth("next")}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-2 mb-2 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-              <span className="text-gray-600">Surgery</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
-              <span className="text-gray-600">Home-visit</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-pink-500"></div>
-              <span className="text-gray-600">Evaluation</span>
-            </div>
-          </div>
-
-          <div className="flex-1 mb-2 overflow-hidden">
-            <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-              {weekDays.map((day) => (
-                <div
-                  key={day}
-                  className="text-center text-xs font-medium text-gray-600 py-0.5"
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-0.5">
-              {calendarDays.map((day, idx) => {
-                const hasAppointment = day && [8, 9, 15, 22, 23, 24, 29].includes(day);
-                return (
-                  <div
-                    key={idx}
-                    className={`aspect-square flex items-center justify-center text-xs ${
-                      day
-                        ? "text-gray-900 hover:bg-gray-50 cursor-pointer"
-                        : "text-gray-300"
-                    }`}
-                    style={{ minHeight: 0 }}
-                  >
-                    {day && (
-                      <div className="relative">
-                        {day}
-                        {hasAppointment && (
-                          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="text-xs text-gray-600 space-y-0.5 mt-auto">
-            <p>06 home-visits</p>
-            <p>142 Evaluations (in clinic)</p>
-            <p>18 Surgery</p>
-          </div>
+          <CalendarWidget />
         </div>
 
         {/* Row 3 - Column 1-2: Patient List */}
