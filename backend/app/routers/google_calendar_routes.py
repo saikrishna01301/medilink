@@ -11,6 +11,8 @@ from services import (
     exchange_code,
     store_credentials,
     revoke_credentials,
+    fetch_events,
+    create_event,
 )
 
 router = APIRouter()
@@ -86,4 +88,38 @@ async def disconnect_google_calendar(
         status_code=status.HTTP_200_OK,
         content={"detail": "Google Calendar disconnected."},
     )
+
+
+@router.get("/events")
+async def list_google_events(
+    current_user=Depends(get_authenticated_user),
+    session: AsyncSession = Depends(get_session),
+    time_min: str | None = Query(None),
+    time_max: str | None = Query(None),
+    include_holidays: bool = Query(False),
+    max_results: int = Query(50, ge=1, le=2500),
+):
+    events = await fetch_events(
+        session,
+        user_id=current_user.id,
+        time_min=time_min,
+        time_max=time_max,
+        max_results=max_results,
+        include_holidays=include_holidays,
+    )
+    return events
+
+
+@router.post("/events", status_code=status.HTTP_201_CREATED)
+async def create_google_event(
+    event: dict,
+    current_user=Depends(get_authenticated_user),
+    session: AsyncSession = Depends(get_session),
+):
+    created = await create_event(
+        session,
+        user_id=current_user.id,
+        body=event,
+    )
+    return created
 

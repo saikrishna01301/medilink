@@ -8,6 +8,7 @@ from .google_calendar import (
     load_credentials,
     fetch_events,
     revoke_credentials,
+    create_event,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     load_credentials,
     fetch_events,
     revoke_credentials,
+    create_event,
 ]

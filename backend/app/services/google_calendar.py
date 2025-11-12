@@ -4,12 +4,12 @@ import asyncio
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import HTTPException, status
+from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
-from google.auth.transport.requests import Request as GoogleRequest
 from googleapiclient.discovery import build
 from jose import jwt, JWTError
 
@@ -187,4 +187,27 @@ async def fetch_events(
         holiday_events = _list_events(config.GOOGLE_HOLIDAYS_CALENDAR_ID)
 
     return {"primary": primary_events, "holidays": holiday_events}
+
+
+async def create_event(
+    session,
+    *,
+    user_id: int,
+    calendar_id: str = "primary",
+    body: Dict[str, Any],
+) -> Dict[str, Any]:
+    credentials = await load_credentials(session, user_id=user_id)
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google Calendar is not connected for this user.",
+        )
+
+    service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
+    created = (
+        service.events()
+        .insert(calendarId=calendar_id, body=body, supportsAttachments=False)
+        .execute()
+    )
+    return created
 
