@@ -14,8 +14,8 @@ export default function DoctorDashboardContent() {
       <div 
         className="grid gap-4"
         style={{
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridTemplateRows: "60px auto auto"
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "60px auto auto auto"
         }}
       >
         {/* Row 1 - Summary Cards */}
@@ -108,8 +108,55 @@ export default function DoctorDashboardContent() {
           </div>
         </div>
 
-        {/* Row 2 - Column 1: Total Patients */}
-        <div className="bg-white rounded-lg shadow p-3" style={{ gridRow: "2 / 3", gridColumn: "1 / 2" }}>
+        {/* Row 2 - Column 1: Active Patients */}
+        <div
+          className="bg-white rounded-lg shadow p-3"
+          style={{ gridRow: "2 / 3", gridColumn: "1 / 2" }}
+        >
+          <h3 className="text-base font-semibold text-gray-900 mb-2">
+            Active Patients
+          </h3>
+          <div className="space-y-1.5">
+            <div>
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">172</span>{" "}
+                Appointments
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-red-600">3</span>{" "}
+                Cancelled
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">9</span>{" "}
+                Reschedule requested
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2 - Column 2-3: Appointments Calendar */}
+        <div
+          className="bg-white rounded-lg shadow p-3 flex flex-col"
+          style={{ gridRow: "2 / 3", gridColumn: "2 / 4" }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Image src="/icons/time.svg" alt="Appointments" width={20} height={20} />
+            <h3 className="text-base font-semibold text-gray-900">
+              Appointments
+            </h3>
+          </div>
+          <CalendarWidget />
+        </div>
+
+        {/* Row 3 - Column 1: Total Patients */}
+        <div
+          className="bg-white rounded-lg shadow p-3"
+          style={{ gridRow: "3 / 4", gridColumn: "1 / 2" }}
+        >
           <div className="flex items-center gap-2 mb-2">
             <Image
               src="/icons/friends.svg"
@@ -154,73 +201,115 @@ export default function DoctorDashboardContent() {
           </div>
         </div>
 
-        {/* Row 2 - Column 2: Active Patients and Active Surgeries Container */}
-        <div className="flex flex-col gap-4" style={{ gridRow: "2 / 3", gridColumn: "2 / 3" }}>
-          {/* Active Patients */}
-          <div className="bg-white rounded-lg shadow p-3 flex-1">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">
-              Active Patients
-            </h3>
-            <div className="space-y-1.5">
-              <div>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-900">172</span>{" "}
-                  Appointments
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-red-600">3</span>{" "}
-                  Cancelled
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-900">9</span>{" "}
-                  Reschedule requested
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Surgeries */}
-          <div className="bg-white rounded-lg shadow p-3 flex-1">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">
-              Active Surgeries
-            </h3>
-            <div className="space-y-1.5">
-              <div>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-900">1</span>{" "}
-                  Surgery done
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-900">18</span>{" "}
-                  Surgery pending
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Row 2 - Column 3: Appointments Calendar */}
+        {/* Row 3 - Column 2: Active Surgeries */}
         <div
-          className="bg-white rounded-lg shadow p-3 flex flex-col"
-          style={{ gridRow: "2 / 3", gridColumn: "3 / 4" }}
+          className="bg-white rounded-lg shadow p-3"
+          style={{ gridRow: "3 / 4", gridColumn: "2 / 3" }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <Image src="/icons/time.svg" alt="Appointments" width={20} height={20} />
-            <h3 className="text-base font-semibold text-gray-900">
-              Appointments
-            </h3>
+          <h3 className="text-base font-semibold text-gray-900 mb-2">
+            Active Surgeries
+          </h3>
+          <div className="space-y-1.5">
+            <div>
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">1</span>{" "}
+                Surgery done
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">18</span>{" "}
+                Surgery pending
+              </p>
+            </div>
           </div>
-          <CalendarWidget />
         </div>
 
-        {/* Row 3 - Column 1-2: Patient List */}
-        <div className="bg-white rounded-lg shadow p-4" style={{ gridRow: "3 / 4", gridColumn: "1 / 3" }}>
+        {/* Row 3 - Column 3: Schedule */}
+        <div className="bg-white rounded-lg shadow p-4 flex flex-col" style={{ gridRow: "3 / 4", gridColumn: "3 / 4" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Image
+              src="/icons/time-management.svg"
+              alt="Schedule"
+              width={20}
+              height={20}
+            />
+            <h3 className="text-base font-semibold text-gray-900">
+              Schedule
+            </h3>
+          </div>
+
+          {/* Today Schedule */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <h4 className="text-xs font-semibold text-gray-900">
+                Today Schedule
+              </h4>
+              <a href="#" className="text-blue-600 text-xs">
+                view all
+              </a>
+            </div>
+            <div className="space-y-1.5">
+              {[
+                { name: "Nicole Jacob", time: "09:00 AM - 09:30 AM" },
+                { name: "Josep Suherman", time: "10:00 AM - 10:30 AM" },
+                { name: "Samuel Christ", time: "11:00 AM - 11:30 AM" },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-lg"
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300"></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-900">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Today 10 Sept 2020 - {item.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tomorrow Schedule */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <h4 className="text-xs font-semibold text-gray-900">
+                Tomorrow&apos;s Schedule
+              </h4>
+              <a href="#" className="text-blue-600 text-xs">
+                view all
+              </a>
+            </div>
+            <div className="space-y-1.5">
+              {[
+                { name: "Bosa S.", time: "09:00 AM - 09:30 AM" },
+                { name: "Sheryl Fatonah", time: "10:00 AM - 10:30 AM" },
+                { name: "Indie Sukaja", time: "11:00 AM - 11:30 AM" },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-lg"
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300"></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-900">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Tomorrow 11 Sept 2020 - {item.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 4 - Column 1-3: Patient List */}
+        <div className="bg-white rounded-lg shadow p-4" style={{ gridRow: "4 / 5", gridColumn: "1 / 4" }}>
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-base font-semibold text-gray-900">
@@ -343,89 +432,6 @@ export default function DoctorDashboardContent() {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Row 3 - Column 3: Schedule */}
-        <div className="bg-white rounded-lg shadow p-4 flex flex-col" style={{ gridRow: "3 / 4", gridColumn: "3 / 4" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Image
-              src="/icons/time-management.svg"
-              alt="Schedule"
-              width={20}
-              height={20}
-            />
-            <h3 className="text-base font-semibold text-gray-900">
-              Schedule
-            </h3>
-          </div>
-
-          {/* Today Schedule */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <h4 className="text-xs font-semibold text-gray-900">
-                Today Schedule
-              </h4>
-              <a href="#" className="text-blue-600 text-xs">
-                view all
-              </a>
-            </div>
-            <div className="space-y-1.5">
-              {[
-                { name: "Nicole Jacob", time: "09:00 AM - 09:30 AM" },
-                { name: "Josep Suherman", time: "10:00 AM - 10:30 AM" },
-                { name: "Samuel Christ", time: "11:00 AM - 11:30 AM" },
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-lg"
-                >
-                  <div className="w-6 h-6 rounded-full bg-gray-300"></div>
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-gray-900">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Today 10 Sept 2020 - {item.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Tomorrow Schedule */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <h4 className="text-xs font-semibold text-gray-900">
-                Tomorrow&apos;s Schedule
-              </h4>
-              <a href="#" className="text-blue-600 text-xs">
-                view all
-              </a>
-            </div>
-            <div className="space-y-1.5">
-              {[
-                { name: "Bosa S.", time: "09:00 AM - 09:30 AM" },
-                { name: "Sheryl Fatonah", time: "10:00 AM - 10:30 AM" },
-                { name: "Indie Sukaja", time: "11:00 AM - 11:30 AM" },
-              ].map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-lg"
-                >
-                  <div className="w-6 h-6 rounded-full bg-gray-300"></div>
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-gray-900">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Tomorrow 11 Sept 2020 - {item.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
