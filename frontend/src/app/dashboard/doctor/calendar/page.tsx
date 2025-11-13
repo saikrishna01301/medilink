@@ -9,6 +9,14 @@ import {
   CreateCalendarEventRequest,
   GoogleCalendarEvent,
 } from "@/services/api";
+import {
+  atEndOfDay,
+  atStartOfDay,
+  formatDateKey,
+  getEventDate,
+  getEventDateKey,
+  getMonthGridBounds,
+} from "@/utils/calendar";
 
 type CategoryOption = {
   value: "appointment" | "task" | "personal";
@@ -32,33 +40,12 @@ type CalendarDay = {
   holidays: GoogleCalendarEvent[];
 };
 
-const toStartOfDay = (date: Date) => {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-};
-
-const toEndOfDay = (date: Date) => {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
-};
-
-const monthBounds = (anchor: Date) => {
-  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
-  const gridStart = new Date(first);
-  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-  const gridEnd = new Date(last);
-  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
-  return { first, last, gridStart, gridEnd };
-};
-
 const buildMatrix = (
   anchor: Date,
   events: CalendarEventsResponse | null
 ): CalendarDay[] => {
-  const { first, last, gridStart, gridEnd } = monthBounds(anchor);
+  const { firstOfMonth, lastOfMonth, gridStart, gridEnd } =
+    getMonthGridBounds(anchor);
   const days: CalendarDay[] = [];
   const cursor = new Date(gridStart);
   const eventMap = new Map<string, { events: GoogleCalendarEvent[]; holidays: GoogleCalendarEvent[] }>();
@@ -75,26 +62,22 @@ const buildMatrix = (
     }
   };
 
-  const eventList = events?.primary ?? [];
-  for (const event of eventList) {
-    const iso =
-      (event.start?.dateTime ?? event.start?.date ?? "").split("T")[0];
-    if (iso) addEvent(iso, event, false);
+  for (const event of events?.primary ?? []) {
+    const key = getEventDateKey(event);
+    if (key) addEvent(key, event, false);
   }
 
-  const holidayList = events?.holidays ?? [];
-  for (const event of holidayList) {
-    const iso =
-      (event.start?.dateTime ?? event.start?.date ?? "").split("T")[0];
-    if (iso) addEvent(iso, event, true);
+  for (const holiday of events?.holidays ?? []) {
+    const key = getEventDateKey(holiday);
+    if (key) addEvent(key, holiday, true);
   }
 
   while (cursor <= gridEnd) {
-    const iso = cursor.toISOString().split("T")[0];
-    const bucket = eventMap.get(iso) ?? { events: [], holidays: [] };
+    const key = formatDateKey(cursor);
+    const bucket = eventMap.get(key) ?? { events: [], holidays: [] };
     days.push({
       date: new Date(cursor),
-      inCurrentMonth: cursor >= first && cursor <= last,
+      inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
       events: bucket.events,
       holidays: bucket.holidays,
     });
@@ -122,28 +105,25 @@ const getCategoryFromEvent = (event: GoogleCalendarEvent): CategoryOption | type
 };
 
 const formatEventTime = (event: GoogleCalendarEvent) => {
-  const startStr = event.start?.dateTime ?? event.start?.date;
-  const endStr = event.end?.dateTime ?? event.end?.date;
-  if (!startStr) return "All day";
-  const start = new Date(startStr);
-  if (!event.end?.dateTime) {
+  const start = getEventDate(event, "start");
+  const end = getEventDate(event, "end");
+  if (!start) return "All day";
+  if (!event.end?.dateTime && event.start?.date) {
+    return new Intl.DateTimeFormat("en", {
+      weekday: "short",
+    }).format(start);
+  }
+  if (!end) {
     return new Intl.DateTimeFormat("en", {
       hour: "numeric",
       minute: "2-digit",
     }).format(start);
   }
-  const end = endStr ? new Date(endStr) : null;
-  return `${new Intl.DateTimeFormat("en", {
+  const formatter = new Intl.DateTimeFormat("en", {
     hour: "numeric",
     minute: "2-digit",
-  }).format(start)} → ${
-    end
-      ? new Intl.DateTimeFormat("en", {
-          hour: "numeric",
-          minute: "2-digit",
-        }).format(end)
-      : ""
-  }`;
+  });
+  return `${formatter.format(start)} → ${formatter.format(end)}`;
 };
 
 export default function DoctorCalendarPage() {
@@ -165,7 +145,10 @@ export default function DoctorCalendarPage() {
   const [creating, setCreating] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const { first, last } = useMemo(() => monthBounds(anchorDate), [anchorDate]);
+  const { firstOfMonth, lastOfMonth } = useMemo(
+    () => getMonthGridBounds(anchorDate),
+    [anchorDate]
+  );
 
   useEffect(() => {
     const interval = setInterval(() => setClock(new Date()), 1000);
@@ -177,8 +160,8 @@ export default function DoctorCalendarPage() {
     setError(null);
     try {
       const data = await calendarAPI.listEvents({
-        timeMin: toStartOfDay(first).toISOString(),
-        timeMax: toEndOfDay(last).toISOString(),
+        timeMin: atStartOfDay(firstOfMonth).toISOString(),
+        timeMax: atEndOfDay(lastOfMonth).toISOString(),
         includeHolidays,
         maxResults: 500,
       });
@@ -208,16 +191,13 @@ export default function DoctorCalendarPage() {
       ...(events?.primary ?? []),
       ...(includeHolidays ? events?.holidays ?? [] : []),
     ];
+    const now = new Date();
     return all
       .map((event) => ({
         event,
-        start: event.start?.dateTime
-          ? new Date(event.start.dateTime)
-          : event.start?.date
-          ? new Date(event.start.date)
-          : null,
+        start: getEventDate(event, "start"),
       }))
-      .filter((item) => item.start && item.start >= new Date())
+      .filter((item) => item.start && item.start >= now)
       .sort((a, b) => (a.start!.getTime() - b.start!.getTime()))
       .slice(0, 10);
   }, [events, includeHolidays]);
@@ -664,7 +644,15 @@ export default function DoctorCalendarPage() {
                       </p>
                     </div>
                     <span className="text-xs text-orange-400">
-                      {todo.start?.date || todo.start?.dateTime?.split("T")[0]}
+                      {(() => {
+                        const date = getEventDate(todo, "start");
+                        return date
+                          ? new Intl.DateTimeFormat("en", {
+                              month: "short",
+                              day: "numeric",
+                            }).format(date)
+                          : "";
+                      })()}
                     </span>
                   </li>
                 ))}

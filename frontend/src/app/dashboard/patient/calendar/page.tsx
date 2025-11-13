@@ -8,6 +8,14 @@ import {
   CalendarEventsResponse,
   GoogleCalendarEvent,
 } from "@/services/api";
+import {
+  atEndOfDay,
+  atStartOfDay,
+  formatDateKey,
+  getEventDate,
+  getEventDateKey,
+  getMonthGridBounds,
+} from "@/utils/calendar";
 
 const weekdayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -20,33 +28,12 @@ type CalendarDay = {
   holidays: GoogleCalendarEvent[];
 };
 
-const monthBounds = (anchor: Date) => {
-  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
-  const gridStart = new Date(first);
-  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-  const gridEnd = new Date(last);
-  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
-  return { first, last, gridStart, gridEnd };
-};
-
-const toStartOfDay = (date: Date) => {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-};
-
-const toEndOfDay = (date: Date) => {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
-};
-
 const buildMatrix = (
   anchor: Date,
   events: CalendarEventsResponse | null
 ): CalendarDay[] => {
-  const { first, last, gridStart, gridEnd } = monthBounds(anchor);
+  const { firstOfMonth, lastOfMonth, gridStart, gridEnd } =
+    getMonthGridBounds(anchor);
   const days: CalendarDay[] = [];
   const cursor = new Date(gridStart);
   const eventBucket = new Map<
@@ -64,22 +51,20 @@ const buildMatrix = (
   };
 
   for (const event of events?.primary ?? []) {
-    const iso =
-      (event.start?.dateTime ?? event.start?.date ?? "").split("T")[0];
-    if (iso) registerEvent(iso, event, false);
+    const key = getEventDateKey(event);
+    if (key) registerEvent(key, event, false);
   }
   for (const holiday of events?.holidays ?? []) {
-    const iso =
-      (holiday.start?.dateTime ?? holiday.start?.date ?? "").split("T")[0];
-    if (iso) registerEvent(iso, holiday, true);
+    const key = getEventDateKey(holiday);
+    if (key) registerEvent(key, holiday, true);
   }
 
   while (cursor <= gridEnd) {
-    const iso = cursor.toISOString().split("T")[0];
-    const bucket = eventBucket.get(iso) ?? { events: [], holidays: [] };
+    const key = formatDateKey(cursor);
+    const bucket = eventBucket.get(key) ?? { events: [], holidays: [] };
     days.push({
       date: new Date(cursor),
-      inCurrentMonth: cursor >= first && cursor <= last,
+      inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
       events: bucket.events,
       holidays: bucket.holidays,
     });
@@ -92,13 +77,14 @@ const monthLabel = (date: Date) =>
   new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(date);
 
 const formatEventTime = (event: GoogleCalendarEvent) => {
-  const value = event.start?.dateTime ?? event.start?.date;
-  if (!value) return "All day";
-  const date = new Date(value);
+  const date = getEventDate(event, "start");
+  if (!date) return "All day";
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
+    month: "short",
+    day: "numeric",
+    hour: event.start?.dateTime ? "numeric" : undefined,
+    minute: event.start?.dateTime ? "2-digit" : undefined,
   }).format(date);
 };
 
@@ -109,15 +95,18 @@ export default function PatientCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [includeHolidays, setIncludeHolidays] = useState(true);
 
-  const { first, last } = useMemo(() => monthBounds(anchorDate), [anchorDate]);
+  const { firstOfMonth, lastOfMonth } = useMemo(
+    () => getMonthGridBounds(anchorDate),
+    [anchorDate]
+  );
 
   const loadEvents = async () => {
     setLoading(true);
     setError(null);
     try {
       const result = await calendarAPI.listEvents({
-        timeMin: toStartOfDay(first).toISOString(),
-        timeMax: toEndOfDay(last).toISOString(),
+        timeMin: atStartOfDay(firstOfMonth).toISOString(),
+        timeMax: atEndOfDay(lastOfMonth).toISOString(),
         includeHolidays,
         maxResults: 200,
       });
@@ -144,16 +133,13 @@ export default function PatientCalendarPage() {
 
   const upcomingVisits = useMemo(() => {
     const list = events?.primary ?? [];
+    const now = new Date();
     return list
       .map((event) => ({
         event,
-        start: event.start?.dateTime
-          ? new Date(event.start.dateTime)
-          : event.start?.date
-          ? new Date(event.start.date)
-          : null,
+        start: getEventDate(event, "start"),
       }))
-      .filter((item) => item.start && item.start >= new Date())
+      .filter((item) => item.start && item.start >= now)
       .sort((a, b) => (a.start!.getTime() - b.start!.getTime()))
       .slice(0, 8);
   }, [events]);
@@ -328,9 +314,16 @@ export default function PatientCalendarPage() {
                     />
                     <span>
                       {holiday.summary} –{" "}
-                      {holiday.start?.date
-                        ? new Date(holiday.start.date).toDateString()
-                        : ""}
+                      {(() => {
+                        const date = getEventDate(holiday, "start");
+                        return date
+                          ? new Intl.DateTimeFormat("en", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            }).format(date)
+                          : "";
+                      })()}
                     </span>
                   </li>
                 ))}

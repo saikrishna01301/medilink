@@ -7,6 +7,11 @@ import {
   CalendarEventsResponse,
   GoogleCalendarEvent,
 } from "@/services/api";
+import {
+  formatDateKey,
+  getEventDateKey,
+  getMonthGridBounds,
+} from "@/utils/calendar";
 
 const weekdayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -28,20 +33,6 @@ type CalendarDay = {
   inCurrentMonth: boolean;
   events: EventDot[];
 };
-
-const getMonthBounds = (anchor: Date) => {
-  const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const lastOfMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
-
-  const start = new Date(firstOfMonth);
-  start.setDate(start.getDate() - start.getDay());
-  const end = new Date(lastOfMonth);
-  end.setDate(end.getDate() + (6 - end.getDay()));
-
-  return { gridStart: start, gridEnd: end, firstOfMonth, lastOfMonth };
-};
-
-const toISODate = (date: Date) => date.toISOString().split("T")[0];
 
 const getEventCategory = (event: GoogleCalendarEvent): EventDot => {
   const extended = (event as any)?.extendedProperties?.private;
@@ -90,7 +81,7 @@ const buildCalendarDays = (
   anchor: Date,
   events: CalendarEventsResponse | null
 ): CalendarDay[] => {
-  const { gridStart, gridEnd, firstOfMonth, lastOfMonth } = getMonthBounds(anchor);
+  const { gridStart, gridEnd, firstOfMonth, lastOfMonth } = getMonthGridBounds(anchor);
 
   const dayCursor = new Date(gridStart);
   const days: CalendarDay[] = [];
@@ -107,34 +98,27 @@ const buildCalendarDays = (
     }
   };
 
-  const eventsList = events?.primary ?? [];
-  const holidays = events?.holidays ?? [];
-
-  for (const event of eventsList) {
-    const dateKey =
-      event.start?.date ??
-      (event.start?.dateTime ? event.start.dateTime.split("T")[0] : "");
-    if (dateKey) {
-      addEvent(dateKey, getEventCategory(event));
+  for (const event of events?.primary ?? []) {
+    const key = getEventDateKey(event);
+    if (key) {
+      addEvent(key, getEventCategory(event));
     }
   }
 
-  for (const holiday of holidays) {
-    const dateKey =
-      holiday.start?.date ??
-      (holiday.start?.dateTime ? holiday.start.dateTime.split("T")[0] : "");
-    if (dateKey) {
-      addEvent(dateKey, { color: colorPalette.holiday, label: "Holiday" });
+  for (const holiday of events?.holidays ?? []) {
+    const key = getEventDateKey(holiday);
+    if (key) {
+      addEvent(key, { color: colorPalette.holiday, label: "Holiday" });
     }
   }
 
   while (dayCursor <= gridEnd) {
-    const iso = toISODate(dayCursor);
+    const key = formatDateKey(dayCursor);
     days.push({
       date: new Date(dayCursor),
       inCurrentMonth:
         dayCursor >= firstOfMonth && dayCursor <= lastOfMonth,
-      events: eventMap.get(iso) ?? [],
+      events: eventMap.get(key) ?? [],
     });
     dayCursor.setDate(dayCursor.getDate() + 1);
   }
@@ -162,7 +146,7 @@ export default function CalendarWidget() {
   const [error, setError] = useState<string | null>(null);
 
   const { firstOfMonth, lastOfMonth } = useMemo(
-    () => getMonthBounds(anchorDate),
+    () => getMonthGridBounds(anchorDate),
     [anchorDate]
   );
 
@@ -204,6 +188,8 @@ export default function CalendarWidget() {
     () => formatMonthHeading(anchorDate),
     [anchorDate]
   );
+
+  const todayKey = formatDateKey(new Date());
 
   return (
     <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
@@ -249,11 +235,11 @@ export default function CalendarWidget() {
 
       <div className="grid grid-cols-7 gap-2 text-sm">
         {days.map((day) => {
-          const isToday =
-            toISODate(day.date) === toISODate(new Date());
+          const dayKey = formatDateKey(day.date);
+          const isToday = dayKey === todayKey;
           return (
             <div
-              key={day.date.toISOString()}
+              key={`${dayKey}-${day.inCurrentMonth ? "in" : "out"}`}
               className={`min-h-[88px] rounded-xl border p-2 transition ${
                 day.inCurrentMonth
                   ? "border-slate-200 bg-white"
