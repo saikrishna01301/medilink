@@ -87,7 +87,7 @@ export default function DoctorLayout({ children }: DoctorLayoutProps) {
   const doctorName = `Dr. ${user.first_name} ${user.last_name}`;
 
   const isActive = (path: string) => {
-    return pathname === path;
+    return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   return (
