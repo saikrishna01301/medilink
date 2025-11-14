@@ -287,16 +287,20 @@ export interface DoctorListItem {
 
 export interface Appointment {
   id: number;
-  user_id: number;
+  patient_user_id: number | null;
+  doctor_user_id: number | null;
+  clinic_id?: number | null;
   title: string;
   description?: string | null;
   start_time: string;
   end_time: string;
+  duration_minutes: number;
+  status?: string | null;
   category?: string | null;
   location?: string | null;
   is_all_day: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface HolidayEvent {
@@ -330,6 +334,10 @@ export interface CreateAppointmentRequest {
   category?: string;
   location?: string;
   is_all_day?: boolean;
+  patient_user_id?: number;
+  doctor_user_id?: number;
+  clinic_id?: number;
+  status?: string;
 }
 
 // Doctor API Functions

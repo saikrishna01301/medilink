@@ -45,7 +45,3 @@ class User(Base):
     otp_codes: Mapped[List["OTPStore"]] = relationship(back_populates="user")
     # Link to doctor profile (one-to-one)
     doctor_profile: Mapped[Optional["DoctorProfile"]] = relationship(back_populates="user", uselist=False)
-    appointments: Mapped[List["Appointment"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
-    )

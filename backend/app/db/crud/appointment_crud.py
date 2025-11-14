@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models.appointment_model import Appointment
@@ -16,14 +16,19 @@ async def list_appointments(
     time_min: Optional[datetime] = None,
     time_max: Optional[datetime] = None,
 ) -> Iterable[Appointment]:
-    stmt = select(Appointment).where(Appointment.user_id == user_id)
+    stmt = select(Appointment).where(
+        or_(
+            Appointment.patient_user_id == user_id,
+            Appointment.doctor_user_id == user_id,
+        )
+    )
 
     if time_min is not None:
-        stmt = stmt.where(Appointment.end_time >= time_min)
+        stmt = stmt.where(Appointment.appointment_date >= time_min)
     if time_max is not None:
-        stmt = stmt.where(Appointment.start_time <= time_max)
+        stmt = stmt.where(Appointment.appointment_date <= time_max)
 
-    stmt = stmt.order_by(Appointment.start_time.asc())
+    stmt = stmt.order_by(Appointment.appointment_date.asc())
 
     result = await session.execute(stmt)
     return result.scalars().all()
@@ -32,24 +37,29 @@ async def list_appointments(
 async def create_appointment(
     session: AsyncSession,
     *,
-    user_id: int,
-    title: str,
-    start_time: datetime,
-    end_time: datetime,
-    description: Optional[str] = None,
-    category: Optional[str] = None,
-    location: Optional[str] = None,
-    is_all_day: bool = False,
+    patient_user_id: Optional[int],
+    doctor_user_id: Optional[int],
+    clinic_id: Optional[int],
+    appointment_date: datetime,
+    duration_minutes: int,
+    status: Optional[str],
+    appointment_type: Optional[str],
+    reason: Optional[str],
+    notes: Optional[str],
 ) -> Appointment:
+    if duration_minutes <= 0:
+        duration_minutes = 30
+
     appointment = Appointment(
-        user_id=user_id,
-        title=title,
-        description=description,
-        start_time=start_time,
-        end_time=end_time,
-        category=category,
-        location=location,
-        is_all_day=is_all_day,
+        patient_user_id=patient_user_id,
+        doctor_user_id=doctor_user_id,
+        clinic_id=clinic_id,
+        appointment_date=appointment_date,
+        duration_minutes=duration_minutes,
+        status=status,
+        appointment_type=appointment_type,
+        reason=reason,
+        notes=notes,
     )
     session.add(appointment)
     await session.commit()

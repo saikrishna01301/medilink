@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, status
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.crud import auth_crud, appointment_crud
-from schemas.appointment_schema import AppointmentCreate, AppointmentRead
+from schemas.appointment_schema import AppointmentCreate
 from services import (
     fetch_holiday_events,
     fetch_service_calendar_events,
@@ -55,7 +55,33 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
 
 
 def _serialize_appointment(model) -> dict:
-    return AppointmentRead.model_validate(model).model_dump(mode="json")
+    start = model.appointment_date
+    duration = model.duration_minutes or 0
+    if duration <= 0:
+        duration = 30
+    end = start + timedelta(minutes=duration)
+    title = model.reason or model.appointment_type or "Appointment"
+    description = model.notes
+    category = model.appointment_type
+    is_all_day = model.status == "all-day" or duration >= 1440
+
+    return {
+        "id": model.appointment_id,
+        "patient_user_id": model.patient_user_id,
+        "doctor_user_id": model.doctor_user_id,
+        "clinic_id": model.clinic_id,
+        "title": title,
+        "description": description,
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "duration_minutes": duration,
+        "status": model.status,
+        "category": category,
+        "location": None,
+        "is_all_day": is_all_day,
+        "created_at": model.created_at.isoformat() if model.created_at else None,
+        "updated_at": model.updated_at.isoformat() if model.updated_at else None,
+    }
 
 
 def _normalize_event(event: dict) -> dict:
@@ -124,16 +150,37 @@ async def create_calendar_event(
             detail="end_time must be after start_time.",
         )
 
+    duration_minutes = int(
+        (payload.end_time - payload.start_time).total_seconds() // 60
+    )
+    if payload.is_all_day:
+        duration_minutes = 24 * 60
+    if duration_minutes <= 0:
+        duration_minutes = 30
+
+    patient_user_id = payload.patient_user_id
+    doctor_user_id = payload.doctor_user_id
+
+    if current_user.role == "doctor":
+        doctor_user_id = doctor_user_id or current_user.id
+        patient_user_id = patient_user_id or current_user.id
+    else:
+        patient_user_id = patient_user_id or current_user.id
+
+    if patient_user_id is None and doctor_user_id is None:
+        patient_user_id = current_user.id
+
     created = await appointment_crud.create_appointment(
         session,
-        user_id=current_user.id,
-        title=payload.title,
-        description=payload.description,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        category=payload.category,
-        location=payload.location,
-        is_all_day=payload.is_all_day,
+        patient_user_id=patient_user_id,
+        doctor_user_id=doctor_user_id,
+        clinic_id=payload.clinic_id,
+        appointment_date=payload.start_time,
+        duration_minutes=duration_minutes,
+        status=payload.status or "scheduled",
+        appointment_type=payload.category or (payload.title or "appointment"),
+        reason=payload.title,
+        notes=payload.description,
     )
 
     return _serialize_appointment(created)
