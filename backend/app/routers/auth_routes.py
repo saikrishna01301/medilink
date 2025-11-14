@@ -6,8 +6,11 @@ from schemas import CreateUser, UserLogin, ReadUser, OTPVerification
 from services import create_tokens, hash_password, verify_password, verify_access_token
 from datetime import datetime
 import json
+from core import config
 
 router = APIRouter()
+
+ACCESS_TOKEN_MAX_AGE = config.ACCESS_TOKEN_EXPIRE_MIN * 60
 
 
 # Health check endpoint
@@ -285,7 +288,7 @@ async def user_login(
         secure=False,
         samesite="Lax",
         path="/",  # Set path to root so it works with rewrites
-        max_age=15 * 60,
+        max_age=ACCESS_TOKEN_MAX_AGE,
     )
 
     # Refresh Token (long-lived)
@@ -363,7 +366,7 @@ async def create_patient_account(
         secure=False,
         samesite="Lax",
         path="/",
-        max_age=15 * 60,
+        max_age=ACCESS_TOKEN_MAX_AGE,
     )
     response.set_cookie(
         key="refresh_token",
@@ -434,7 +437,7 @@ async def verify_account(
         secure=False,
         samesite="Lax",
         path="/",  # Set path to root so it works with rewrites
-        max_age=15 * 60,
+        max_age=ACCESS_TOKEN_MAX_AGE,
     )
 
     # Refresh Token (long-lived)
@@ -465,7 +468,7 @@ async def verify_account(
     }
 
 
-@router.post("/token/refresh")
+@router.post("/token/refresh", tags=["auth"])
 async def refresh_access_token(
     response: Response,
     # 1. Access the Refresh Token sent in the cookie
@@ -520,7 +523,7 @@ async def refresh_access_token(
         httponly=True,
         secure=False,
         samesite="Lax",
-        max_age=15 * 60,  # Set to 15 minutes again
+        max_age=ACCESS_TOKEN_MAX_AGE,
     )
 
     return {"msg": "Access token refreshed successfully."}

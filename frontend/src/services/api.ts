@@ -80,126 +80,172 @@ export class APIError extends Error {
   }
 }
 
+type APIRequestOptions = RequestInit & {
+  skipAuth?: boolean;
+  retry?: boolean;
+  defaultError?: string;
+  expectJson?: boolean;
+};
+
+let refreshPromise: Promise<void> | null = null;
+
+const parseErrorDetail = async (response: Response, fallback: string) => {
+  try {
+    const text = await response.text();
+    if (!text) return fallback;
+    const data = JSON.parse(text);
+    return typeof data?.detail === "string" ? data.detail : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const refreshAccessToken = async (): Promise<void> => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const response = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const detail = await parseErrorDetail(
+          response,
+          "Failed to refresh session."
+        );
+        throw new APIError(response.status, detail);
+      }
+    })();
+  }
+
+  try {
+    await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+};
+
+const apiFetch = async <T = unknown>(
+  path: string,
+  options: APIRequestOptions = {}
+): Promise<T> => {
+  const {
+    skipAuth = false,
+    retry = true,
+    defaultError = "Request failed",
+    expectJson = true,
+    credentials,
+    ...init
+  } = options;
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: credentials ?? "include",
+    ...init,
+  });
+
+  if (response.status === 401 && !skipAuth && retry) {
+    try {
+      await refreshAccessToken();
+      return apiFetch<T>(path, { ...options, retry: false });
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      throw new APIError(401, "Session expired. Please log in again.");
+    }
+  }
+
+  if (!response.ok) {
+    const detail = await parseErrorDetail(response, defaultError);
+    throw new APIError(response.status, detail);
+  }
+
+  if (!expectJson || response.status === 204) {
+    return undefined as T;
+  }
+
+  const responseText = await response.text();
+  if (!responseText) {
+    return undefined as T;
+  }
+
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    throw new APIError(response.status, "Invalid response format.");
+  }
+};
+
 // API Functions
 export const authAPI = {
   // Sign up new user
   signUp: async (data: SignUpRequest): Promise<SignUpResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    return apiFetch<SignUpResponse>("/auth/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
+      skipAuth: true,
+      defaultError: "Sign up failed",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(response.status, error.detail || "Sign up failed");
-    }
-
-    return response.json();
   },
 
   // Login user
   login: async (data: LoginRequest): Promise<LoginResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    return apiFetch<LoginResponse>("/auth/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies for token storage
       body: JSON.stringify(data),
+      skipAuth: true,
+      defaultError: "Login failed",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(response.status, error.detail || "Login failed");
-    }
-
-    return response.json();
   },
 
   // Verify OTP
   verifyOTP: async (
     data: OTPVerificationRequest
   ): Promise<OTPVerificationResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+    return apiFetch<OTPVerificationResponse>("/auth/verify-account", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
+      skipAuth: true,
+      defaultError: "OTP verification failed",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "OTP verification failed"
-      );
-    }
-
-    return response.json();
   },
 
   // Refresh access token
   refreshToken: async (): Promise<{ msg: string }> => {
-    const response = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
+    return apiFetch<{ msg: string }>("/auth/token/refresh", {
       method: "POST",
-      credentials: "include", // Important: Include cookies
+      skipAuth: true,
+      defaultError: "Token refresh failed",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Token refresh failed"
-      );
-    }
-
-    return response.json();
   },
 
   // Get current user (requires authentication)
   getCurrentUser: async (): Promise<CurrentUserResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    return apiFetch<CurrentUserResponse>("/auth/me", {
       method: "GET",
-      credentials: "include", // Important: Include cookies
+      defaultError: "Failed to fetch user data",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to fetch user data"
-      );
-    }
-
-    return response.json();
   },
 
   // Create patient account for existing service provider
   createPatientAccount: async (data: LoginRequest): Promise<LoginResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/create-patient-account`, {
+    return apiFetch<LoginResponse>("/auth/create-patient-account", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
+      defaultError: "Failed to create patient account",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to create patient account"
-      );
-    }
-
-    return response.json();
   },
 };
 
@@ -354,105 +400,52 @@ export const doctorAPI = {
       query.append("specialty", params.specialty);
     }
 
-    const url = query.toString()
-      ? `${API_BASE_URL}/doctors?${query.toString()}`
-      : `${API_BASE_URL}/doctors`;
-
-    const response = await fetch(url, {
+    const path = query.toString() ? `/doctors?${query.toString()}` : "/doctors";
+    return apiFetch<DoctorListItem[]>(path, {
       method: "GET",
-      credentials: "include",
+      defaultError: "Failed to fetch doctors",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to fetch doctors"
-      );
-    }
-
-    return response.json();
   },
 
   listSpecialties: async (): Promise<string[]> => {
-    const response = await fetch(`${API_BASE_URL}/doctors/specialties`, {
+    return apiFetch<string[]>("/doctors/specialties", {
       method: "GET",
-      credentials: "include",
+      defaultError: "Failed to fetch specialties",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to fetch specialties"
-      );
-    }
-
-    return response.json();
   },
 
   // Get doctor profile
   getProfile: async (): Promise<DoctorProfileData> => {
-    const response = await fetch(`${API_BASE_URL}/doctors/profile`, {
+    return apiFetch<DoctorProfileData>("/doctors/profile", {
       method: "GET",
-      credentials: "include", // Important: Include cookies
+      defaultError: "Failed to fetch doctor profile",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to fetch doctor profile"
-      );
-    }
-
-    return response.json();
   },
 
   // Update doctor profile
   updateProfile: async (
     data: DoctorProfileUpdate
   ): Promise<DoctorProfileData> => {
-    const response = await fetch(`${API_BASE_URL}/doctors/profile`, {
+    return apiFetch<DoctorProfileData>("/doctors/profile", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
+      defaultError: "Failed to update doctor profile",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to update doctor profile"
-      );
-    }
-
-    return response.json();
   },
 
   // Update user info
   updateUserInfo: async (data: UserInfoUpdate): Promise<DoctorProfileData> => {
-    const response = await fetch(`${API_BASE_URL}/doctors/user-info`, {
+    return apiFetch<DoctorProfileData>("/doctors/user-info", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include", // Important: Include cookies
       body: JSON.stringify(data),
+      defaultError: "Failed to update user information",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to update user information"
-      );
-    }
-
-    return response.json();
   },
 
   // Upload profile picture
@@ -460,39 +453,19 @@ export const doctorAPI = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`${API_BASE_URL}/doctors/upload-profile-picture`, {
+    return apiFetch<{ message: string; photo_url: string }>("/doctors/upload-profile-picture", {
       method: "POST",
-      credentials: "include", // Important: Include cookies
       body: formData,
+      defaultError: "Failed to upload profile picture",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to upload profile picture"
-      );
-    }
-
-    return response.json();
   },
 
   // Delete profile picture
   deleteProfilePicture: async (): Promise<{ message: string }> => {
-    const response = await fetch(`${API_BASE_URL}/doctors/profile-picture`, {
+    return apiFetch<{ message: string }>("/doctors/profile-picture", {
       method: "DELETE",
-      credentials: "include", // Important: Include cookies
+      defaultError: "Failed to delete profile picture",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to delete profile picture"
-      );
-    }
-
-    return response.json();
   },
 };
 
@@ -509,50 +482,27 @@ export const calendarAPI = {
     if (params?.includeHolidays) query.append("include_holidays", "true");
     if (params?.maxResults) query.append("max_results", params.maxResults.toString());
 
-    const url = query.toString()
-      ? `${API_BASE_URL}/calendar/google/events?${query.toString()}`
-      : `${API_BASE_URL}/calendar/google/events`;
+    const path = query.toString()
+      ? `/calendar/google/events?${query.toString()}`
+      : "/calendar/google/events";
 
-    const response = await fetch(url, {
+    return apiFetch<CalendarEventsResponse>(path, {
       method: "GET",
-      credentials: "include",
+      defaultError: "Failed to fetch calendar events",
     });
-
-    if (!response.ok) {
-      let errorDetail = "Failed to fetch calendar events";
-      try {
-        const error = await response.json();
-        errorDetail = error.detail || errorDetail;
-      } catch {
-        // ignore JSON parse errors
-      }
-      throw new APIError(response.status, errorDetail);
-    }
-
-    return response.json();
   },
 
   createAppointment: async (
     payload: CreateAppointmentRequest
   ): Promise<Appointment> => {
-    const response = await fetch(`${API_BASE_URL}/calendar/google/events`, {
+    return apiFetch<Appointment>("/calendar/google/events", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
       body: JSON.stringify(payload),
+      defaultError: "Failed to create appointment",
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to create appointment"
-      );
-    }
-
-    return response.json();
   },
 };
 

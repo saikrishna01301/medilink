@@ -30,6 +30,10 @@ class config(BaseSettings):
     # If key file path is not provided, will use default credentials
     USE_DEFAULT_CREDENTIALS: bool = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
+    # Token lifetimes
+    ACCESS_TOKEN_EXPIRE_MIN: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MIN", "20"))
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "14"))
+
     # Google Calendar (Service Account)
     GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH: str = os.getenv(
         "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH",
