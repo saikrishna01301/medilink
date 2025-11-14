@@ -285,43 +285,51 @@ export interface DoctorListItem {
   board_certifications: string[];
 }
 
-export interface CalendarEventDateTime {
-  date?: string;
-  dateTime?: string;
-  timeZone?: string;
+export interface Appointment {
+  id: number;
+  user_id: number;
+  title: string;
+  description?: string | null;
+  start_time: string;
+  end_time: string;
+  category?: string | null;
+  location?: string | null;
+  is_all_day: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface GoogleCalendarEvent {
-  id: string;
+export interface HolidayEvent {
+  id?: string;
   summary?: string;
   description?: string;
-  start?: CalendarEventDateTime;
-  end?: CalendarEventDateTime;
+  start?: {
+    date?: string;
+    dateTime?: string;
+    timeZone?: string;
+  };
+  end?: {
+    date?: string;
+    dateTime?: string;
+    timeZone?: string;
+  };
   location?: string;
-  colorId?: string;
-  status?: string;
-  htmlLink?: string;
-  [key: string]: unknown;
 }
 
 export interface CalendarEventsResponse {
-  primary: GoogleCalendarEvent[];
-  holidays: GoogleCalendarEvent[];
+  appointments: Appointment[];
+  holidays: HolidayEvent[];
+  service_events: HolidayEvent[];
 }
 
-export interface CreateCalendarEventRequest {
-  summary: string;
+export interface CreateAppointmentRequest {
+  title: string;
   description?: string;
-  start: CalendarEventDateTime;
-  end: CalendarEventDateTime;
+  start_time: string;
+  end_time: string;
+  category?: string;
   location?: string;
-  colorId?: string;
-  attendees?: Array<{ email: string }>;
-  reminders?: {
-    useDefault?: boolean;
-    overrides?: Array<{ method: string; minutes: number }>;
-  };
-  [key: string]: unknown;
+  is_all_day?: boolean;
 }
 
 // Doctor API Functions
@@ -503,19 +511,22 @@ export const calendarAPI = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new APIError(
-        response.status,
-        error.detail || "Failed to fetch calendar events"
-      );
+      let errorDetail = "Failed to fetch calendar events";
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // ignore JSON parse errors
+      }
+      throw new APIError(response.status, errorDetail);
     }
 
     return response.json();
   },
 
-  createEvent: async (
-    payload: CreateCalendarEventRequest
-  ): Promise<GoogleCalendarEvent> => {
+  createAppointment: async (
+    payload: CreateAppointmentRequest
+  ): Promise<Appointment> => {
     const response = await fetch(`${API_BASE_URL}/calendar/google/events`, {
       method: "POST",
       headers: {
@@ -529,7 +540,7 @@ export const calendarAPI = {
       const error = await response.json();
       throw new APIError(
         response.status,
-        error.detail || "Failed to create calendar event"
+        error.detail || "Failed to create appointment"
       );
     }
 

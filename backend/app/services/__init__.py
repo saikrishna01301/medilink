@@ -2,13 +2,8 @@ from .auth_utils import hash_password, verify_password, verify_access_token, cre
 from .otp_utils import send_otp_email
 from .storage_service import get_storage_service, StorageService
 from .google_calendar import (
-    build_authorization_url,
-    exchange_code,
-    store_credentials,
-    load_credentials,
-    fetch_events,
-    revoke_credentials,
-    create_event,
+    fetch_service_calendar_events,
+    fetch_holiday_events,
 )
 
 __all__ = [
@@ -19,11 +14,6 @@ __all__ = [
     send_otp_email,
     get_storage_service,
     StorageService,
-    build_authorization_url,
-    exchange_code,
-    store_credentials,
-    load_credentials,
-    fetch_events,
-    revoke_credentials,
-    create_event,
+    fetch_service_calendar_events,
+    fetch_holiday_events,
 ]

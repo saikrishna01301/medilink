@@ -1,6 +1,6 @@
 from .base import Base
 from .database import engine, sessionLocal, init_db, get_session
-from .models import User, DBSession, OTPStore, DoctorProfile, GoogleCalendarCredential
+from .models import User, DBSession, OTPStore, DoctorProfile, Appointment
 from .crud import auth_crud
 
 __all__ = [
@@ -16,5 +16,5 @@ __all__ = [
     "DBSession",
     "OTPStore",
     "DoctorProfile",
-    "GoogleCalendarCredential",
+    "Appointment",
 ]

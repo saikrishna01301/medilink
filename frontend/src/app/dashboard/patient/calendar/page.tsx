@@ -6,7 +6,8 @@ import Link from "next/link";
 import {
   calendarAPI,
   CalendarEventsResponse,
-  GoogleCalendarEvent,
+  Appointment,
+  HolidayEvent,
 } from "@/services/api";
 import {
   atEndOfDay,
@@ -24,8 +25,9 @@ const holidayColor = "#F43F5E";
 type CalendarDay = {
   date: Date;
   inCurrentMonth: boolean;
-  events: GoogleCalendarEvent[];
-  holidays: GoogleCalendarEvent[];
+  appointments: Appointment[];
+  holidays: HolidayEvent[];
+  shared: HolidayEvent[];
 };
 
 const buildMatrix = (
@@ -36,56 +38,76 @@ const buildMatrix = (
     getMonthGridBounds(anchor);
   const days: CalendarDay[] = [];
   const cursor = new Date(gridStart);
-  const eventBucket = new Map<
+  const bucket = new Map<
     string,
-    { events: GoogleCalendarEvent[]; holidays: GoogleCalendarEvent[] }
+    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[] }
   >();
 
-  const registerEvent = (iso: string, event: GoogleCalendarEvent, isHoliday = false) => {
-    if (!eventBucket.has(iso)) {
-      eventBucket.set(iso, { events: [], holidays: [] });
+  const ensureBucket = (key: string) => {
+    if (!bucket.has(key)) {
+      bucket.set(key, { appointments: [], holidays: [], shared: [] });
     }
-    const bucket = eventBucket.get(iso)!;
-    if (isHoliday) bucket.holidays.push(event);
-    else bucket.events.push(event);
+    return bucket.get(key)!;
   };
 
-  for (const event of events?.primary ?? []) {
-    const key = getEventDateKey(event);
-    if (key) registerEvent(key, event, false);
+  for (const appointment of events?.appointments ?? []) {
+    const key = getEventDateKey(appointment);
+    if (key) ensureBucket(key).appointments.push(appointment);
   }
+
   for (const holiday of events?.holidays ?? []) {
     const key = getEventDateKey(holiday);
-    if (key) registerEvent(key, holiday, true);
+    if (key) ensureBucket(key).holidays.push(holiday);
+  }
+
+  for (const shared of events?.service_events ?? []) {
+    const key = getEventDateKey(shared);
+    if (key) ensureBucket(key).shared.push(shared);
   }
 
   while (cursor <= gridEnd) {
     const key = formatDateKey(cursor);
-    const bucket = eventBucket.get(key) ?? { events: [], holidays: [] };
+    const entry =
+      bucket.get(key) ?? { appointments: [], holidays: [], shared: [] };
     days.push({
       date: new Date(cursor),
       inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
-      events: bucket.events,
-      holidays: bucket.holidays,
+      appointments: entry.appointments,
+      holidays: entry.holidays,
+      shared: entry.shared,
     });
     cursor.setDate(cursor.getDate() + 1);
   }
+
   return days;
 };
 
 const monthLabel = (date: Date) =>
   new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(date);
 
-const formatEventTime = (event: GoogleCalendarEvent) => {
-  const date = getEventDate(event, "start");
-  if (!date) return "All day";
+const formatAppointmentTime = (event: Appointment) => {
+  const start = getEventDate(event, "start");
+  if (!start) return "All day";
   return new Intl.DateTimeFormat("en", {
     weekday: "short",
     month: "short",
     day: "numeric",
-    hour: event.start?.dateTime ? "numeric" : undefined,
-    minute: event.start?.dateTime ? "2-digit" : undefined,
-  }).format(date);
+    hour: event.is_all_day ? undefined : "numeric",
+    minute: event.is_all_day ? undefined : "2-digit",
+  }).format(start);
+};
+
+const formatHolidayTime = (event: HolidayEvent) => {
+  const start = getEventDate(event, "start");
+  if (!start) return "";
+  const hasTime = Boolean(event.start?.dateTime);
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: hasTime ? "numeric" : undefined,
+    minute: hasTime ? "2-digit" : undefined,
+  }).format(start);
 };
 
 export default function PatientCalendarPage() {
@@ -132,7 +154,7 @@ export default function PatientCalendarPage() {
   );
 
   const upcomingVisits = useMemo(() => {
-    const list = events?.primary ?? [];
+    const list = events?.appointments ?? [];
     const now = new Date();
     return list
       .map((event) => ({
@@ -140,7 +162,7 @@ export default function PatientCalendarPage() {
         start: getEventDate(event, "start"),
       }))
       .filter((item) => item.start && item.start >= now)
-      .sort((a, b) => (a.start!.getTime() - b.start!.getTime()))
+      .sort((a, b) => a.start!.getTime() - b.start!.getTime())
       .slice(0, 8);
   }, [events]);
 
@@ -150,7 +172,7 @@ export default function PatientCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Calendar</h1>
           <p className="text-gray-600">
-            All appointments from your Google Calendar appear here automatically.
+            View your MediLink appointments alongside shared clinic events and holidays.
           </p>
         </div>
         <Link
@@ -212,7 +234,8 @@ export default function PatientCalendarPage() {
 
           <div className="mt-2 grid grid-cols-7 gap-3 text-sm">
             {matrix.map((day) => {
-              const isToday = day.date.toDateString() === new Date().toDateString();
+              const isToday =
+                day.date.toDateString() === new Date().toDateString();
 
               return (
                 <div
@@ -232,14 +255,16 @@ export default function PatientCalendarPage() {
                     )}
                   </div>
                   <div className="mt-3 space-y-1.5">
-                    {day.events.slice(0, 3).map((event) => (
+                    {day.appointments.slice(0, 3).map((event) => (
                       <div
                         key={event.id}
                         className="rounded-xl border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-700"
                       >
-                        <div className="font-semibold">{event.summary || "Untitled"}</div>
+                        <div className="font-semibold">
+                          {event.title || "Untitled"}
+                        </div>
                         <div className="text-[11px] text-blue-600">
-                          {formatEventTime(event)}
+                          {formatAppointmentTime(event)}
                         </div>
                       </div>
                     ))}
@@ -251,9 +276,17 @@ export default function PatientCalendarPage() {
                         Holiday: {holiday.summary}
                       </div>
                     ))}
-                    {day.events.length > 3 && (
+                    {day.shared.map((shared) => (
+                      <div
+                        key={shared.id}
+                        className="rounded-xl border border-sky-100 bg-sky-50 px-2 py-1 text-xs text-sky-600"
+                      >
+                        Shared: {shared.summary}
+                      </div>
+                    ))}
+                    {day.appointments.length > 3 && (
                       <div className="text-xs text-slate-400">
-                        +{day.events.length - 3} more…
+                        +{day.appointments.length - 3} more…
                       </div>
                     )}
                   </div>

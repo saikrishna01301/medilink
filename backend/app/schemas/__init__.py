@@ -7,6 +7,7 @@ from .doctor_schema import (
     DoctorProfileWithUser,
     DoctorListItem,
 )
+from .appointment_schema import AppointmentCreate, AppointmentRead
 
 __all__ = [
     UserLogin,
@@ -18,4 +19,6 @@ __all__ = [
     DoctorProfileRead,
     DoctorProfileWithUser,
     DoctorListItem,
+    AppointmentCreate,
+    AppointmentRead,
 ]

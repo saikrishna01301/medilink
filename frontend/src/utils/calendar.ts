@@ -1,6 +1,7 @@
-import { GoogleCalendarEvent } from "@/services/api";
+import { Appointment, HolidayEvent } from "@/services/api";
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type CalendarItem = Appointment | HolidayEvent;
 
 export const formatDateKey = (date: Date): string => {
   const year = date.getFullYear();
@@ -40,25 +41,27 @@ export const getMonthGridBounds = (anchor: Date, weekStartsOn: Weekday = 0) => {
 };
 
 export const getEventDate = (
-  event: GoogleCalendarEvent,
+  event: CalendarItem,
   field: "start" | "end" = "start"
 ): Date | null => {
-  const node = event[field];
-  if (!node) {
-    return null;
-  }
-  const raw = node.dateTime ?? node.date;
-  if (!raw) {
-    return null;
-  }
-  if (raw.includes("T")) {
+  if ("start_time" in event) {
+    const raw = field === "start" ? event.start_time : event.end_time;
+    if (!raw) return null;
     return new Date(raw);
   }
+
+  const node = event[field];
+  if (!node) return null;
+
+  const raw = node.dateTime ?? node.date;
+  if (!raw) return null;
+
+  if (raw.includes("T")) return new Date(raw);
   return parseDateKey(raw);
 };
 
 export const getEventDateKey = (
-  event: GoogleCalendarEvent,
+  event: CalendarItem,
   field: "start" | "end" = "start"
 ): string | null => {
   const date = getEventDate(event, field);

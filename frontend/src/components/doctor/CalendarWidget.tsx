@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   calendarAPI,
   CalendarEventsResponse,
-  GoogleCalendarEvent,
+  Appointment,
 } from "@/services/api";
 import {
   formatDateKey,
@@ -21,6 +21,7 @@ const colorPalette: Record<string, string> = {
   personal: "#6366F1",
   default: "#10B981",
   holiday: "#F43F5E",
+  shared: "#0EA5E9",
 };
 
 type EventDot = {
@@ -34,45 +35,25 @@ type CalendarDay = {
   events: EventDot[];
 };
 
-const getEventCategory = (event: GoogleCalendarEvent): EventDot => {
-  const extended = (event as any)?.extendedProperties?.private;
-  const explicitCategory =
-    extended?.medilinkCategory || extended?.category || undefined;
-  if (explicitCategory && colorPalette[explicitCategory]) {
-    return { color: colorPalette[explicitCategory], label: explicitCategory };
+const getEventCategory = (event: Appointment): EventDot => {
+  const category = event.category ?? "";
+  if (category && colorPalette[category]) {
+    return { color: colorPalette[category], label: category };
   }
 
-  const summary = (event.summary || "").toLowerCase();
-  const colorId = event.colorId ?? "";
-  if (event.status === "cancelled") {
-    return { color: "#94A3B8", label: "Cancelled" };
-  }
+  const summary = (event.title || "").toLowerCase();
   if (summary.includes("todo") || summary.includes("task")) {
     return { color: colorPalette.task, label: "Task" };
   }
-  if (summary.includes("visit") || summary.includes("consult") || summary.includes("appointment")) {
+  if (
+    summary.includes("visit") ||
+    summary.includes("consult") ||
+    summary.includes("appointment")
+  ) {
     return { color: colorPalette.appointment, label: "Appointment" };
   }
   if (summary.includes("holiday")) {
     return { color: colorPalette.holiday, label: "Holiday" };
-  }
-  if (colorId) {
-    const palette = [
-      "#2563EB",
-      "#F97316",
-      "#8B5CF6",
-      "#22C55E",
-      "#F43F5E",
-      "#0EA5E9",
-      "#E11D48",
-    ];
-    const index = Number.parseInt(colorId, 10);
-    if (!Number.isNaN(index)) {
-      return {
-        color: palette[(index - 1) % palette.length],
-        label: "Event",
-      };
-    }
   }
   return { color: colorPalette.default, label: "Event" };
 };
@@ -98,10 +79,10 @@ const buildCalendarDays = (
     }
   };
 
-  for (const event of events?.primary ?? []) {
-    const key = getEventDateKey(event);
+  for (const appointment of events?.appointments ?? []) {
+    const key = getEventDateKey(appointment);
     if (key) {
-      addEvent(key, getEventCategory(event));
+      addEvent(key, getEventCategory(appointment));
     }
   }
 
@@ -109,6 +90,13 @@ const buildCalendarDays = (
     const key = getEventDateKey(holiday);
     if (key) {
       addEvent(key, { color: colorPalette.holiday, label: "Holiday" });
+    }
+  }
+
+  for (const shared of events?.service_events ?? []) {
+    const key = getEventDateKey(shared);
+    if (key) {
+      addEvent(key, { color: colorPalette.shared, label: "Shared" });
     }
   }
 
@@ -134,9 +122,9 @@ const formatMonthHeading = (date: Date) =>
 
 const formatRangeLabel = (events: CalendarEventsResponse | null) => {
   if (!events) return "";
-  const totalAppointments = events.primary.length;
+  const totalAppointments = events.appointments.length;
   const holidayCount = events.holidays.length;
-  return `${totalAppointments} events • ${holidayCount} holidays`;
+  return `${totalAppointments} appointments • ${holidayCount} holidays`;
 };
 
 export default function CalendarWidget() {

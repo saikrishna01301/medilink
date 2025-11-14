@@ -30,23 +30,18 @@ class config(BaseSettings):
     # If key file path is not provided, will use default credentials
     USE_DEFAULT_CREDENTIALS: bool = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
-    # Google OAuth / Calendar
-    GOOGLE_OAUTH_CLIENT_ID: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-    GOOGLE_OAUTH_CLIENT_SECRET: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-    GOOGLE_OAUTH_REDIRECT_URI: str = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
-    GOOGLE_OAUTH_DEV_REDIRECT_URI: str = os.getenv("GOOGLE_OAUTH_DEV_REDIRECT_URI", "")
-    GOOGLE_OAUTH_SCOPES: str = os.getenv(
-        "GOOGLE_OAUTH_SCOPES",
-        "https://www.googleapis.com/auth/calendar.readonly",
+    # Google Calendar (Service Account)
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH: str = os.getenv(
+        "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH",
+        "",
     )
-    GOOGLE_OAUTH_CREDENTIALS_PATH: str = os.getenv("GOOGLE_OAUTH_CREDENTIALS_PATH", "")
+    GOOGLE_SERVICE_ACCOUNT_CALENDAR_ID: str = os.getenv(
+        "GOOGLE_SERVICE_ACCOUNT_CALENDAR_ID",
+        "",
+    )
     GOOGLE_HOLIDAYS_CALENDAR_ID: str = os.getenv(
         "GOOGLE_HOLIDAYS_CALENDAR_ID",
         "en.usa#holiday@group.v.calendar.google.com",
-    )
-    GOOGLE_OAUTH_SUCCESS_REDIRECT: str = os.getenv(
-        "GOOGLE_OAUTH_SUCCESS_REDIRECT",
-        "/dashboard/doctor/appointments",
     )
 
 

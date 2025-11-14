@@ -6,8 +6,9 @@ import Link from "next/link";
 import {
   calendarAPI,
   CalendarEventsResponse,
-  CreateCalendarEventRequest,
-  GoogleCalendarEvent,
+  Appointment,
+  HolidayEvent,
+  CreateAppointmentRequest,
 } from "@/services/api";
 import {
   atEndOfDay,
@@ -22,13 +23,12 @@ type CategoryOption = {
   value: "appointment" | "task" | "personal";
   label: string;
   color: string;
-  colorId: string;
 };
 
 const categoryOptions: CategoryOption[] = [
-  { value: "appointment", label: "Consultation", color: "#2563EB", colorId: "1" },
-  { value: "task", label: "To-do", color: "#F97316", colorId: "6" },
-  { value: "personal", label: "Personal", color: "#6366F1", colorId: "2" },
+  { value: "appointment", label: "Consultation", color: "#2563EB" },
+  { value: "task", label: "To-do", color: "#F97316" },
+  { value: "personal", label: "Personal", color: "#6366F1" },
 ];
 
 const holidayCategory = { value: "holiday", label: "Holiday", color: "#F43F5E" };
@@ -36,8 +36,9 @@ const holidayCategory = { value: "holiday", label: "Holiday", color: "#F43F5E" }
 type CalendarDay = {
   date: Date;
   inCurrentMonth: boolean;
-  events: GoogleCalendarEvent[];
-  holidays: GoogleCalendarEvent[];
+  appointments: Appointment[];
+  holidays: HolidayEvent[];
+  shared: HolidayEvent[];
 };
 
 const buildMatrix = (
@@ -48,38 +49,49 @@ const buildMatrix = (
     getMonthGridBounds(anchor);
   const days: CalendarDay[] = [];
   const cursor = new Date(gridStart);
-  const eventMap = new Map<string, { events: GoogleCalendarEvent[]; holidays: GoogleCalendarEvent[] }>();
+  const eventMap = new Map<
+    string,
+    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[] }
+  >();
 
-  const addEvent = (isoDate: string, event: GoogleCalendarEvent, isHoliday = false) => {
-    if (!eventMap.has(isoDate)) {
-      eventMap.set(isoDate, { events: [], holidays: [] });
+  const ensureBucket = (key: string) => {
+    if (!eventMap.has(key)) {
+      eventMap.set(key, { appointments: [], holidays: [], shared: [] });
     }
-    const bucket = eventMap.get(isoDate)!;
-    if (isHoliday) {
-      bucket.holidays.push(event);
-    } else {
-      bucket.events.push(event);
-    }
+    return eventMap.get(key)!;
   };
 
-  for (const event of events?.primary ?? []) {
-    const key = getEventDateKey(event);
-    if (key) addEvent(key, event, false);
+  for (const appointment of events?.appointments ?? []) {
+    const key = getEventDateKey(appointment);
+    if (key) {
+      ensureBucket(key).appointments.push(appointment);
+    }
   }
 
   for (const holiday of events?.holidays ?? []) {
     const key = getEventDateKey(holiday);
-    if (key) addEvent(key, holiday, true);
+    if (key) {
+      ensureBucket(key).holidays.push(holiday);
+    }
+  }
+
+  for (const shared of events?.service_events ?? []) {
+    const key = getEventDateKey(shared);
+    if (key) {
+      ensureBucket(key).shared.push(shared);
+    }
   }
 
   while (cursor <= gridEnd) {
     const key = formatDateKey(cursor);
-    const bucket = eventMap.get(key) ?? { events: [], holidays: [] };
+    const bucket =
+      eventMap.get(key) ?? { appointments: [], holidays: [], shared: [] };
     days.push({
       date: new Date(cursor),
       inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
-      events: bucket.events,
+      appointments: bucket.appointments,
       holidays: bucket.holidays,
+      shared: bucket.shared,
     });
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -91,24 +103,34 @@ const monthLabel = (date: Date) =>
 
 const weekdayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const getCategoryFromEvent = (event: GoogleCalendarEvent): CategoryOption | typeof holidayCategory | null => {
-  const extended = (event as any)?.extendedProperties?.private;
-  const categoryKey = extended?.medilinkCategory || extended?.category;
-  if (categoryKey) {
-    const match = categoryOptions.find((opt) => opt.value === categoryKey);
+const getCategoryFromEvent = (event: Appointment): CategoryOption | null => {
+  if (event.category) {
+    const match = categoryOptions.find((opt) => opt.value === event.category);
     if (match) return match;
   }
-  if ((event.summary || "").toLowerCase().includes("holiday")) {
-    return holidayCategory;
+
+  const title = (event.title || "").toLowerCase();
+  if (title.includes("todo") || title.includes("task")) {
+    return categoryOptions.find((opt) => opt.value === "task") ?? null;
+  }
+  if (
+    title.includes("visit") ||
+    title.includes("consult") ||
+    title.includes("appointment")
+  ) {
+    return categoryOptions.find((opt) => opt.value === "appointment") ?? null;
+  }
+  if (title.includes("personal")) {
+    return categoryOptions.find((opt) => opt.value === "personal") ?? null;
   }
   return null;
 };
 
-const formatEventTime = (event: GoogleCalendarEvent) => {
+const formatAppointmentTime = (event: Appointment) => {
   const start = getEventDate(event, "start");
   const end = getEventDate(event, "end");
   if (!start) return "All day";
-  if (!event.end?.dateTime && event.start?.date) {
+  if (event.is_all_day) {
     return new Intl.DateTimeFormat("en", {
       weekday: "short",
     }).format(start);
@@ -124,6 +146,20 @@ const formatEventTime = (event: GoogleCalendarEvent) => {
     minute: "2-digit",
   });
   return `${formatter.format(start)} → ${formatter.format(end)}`;
+};
+
+const formatHolidayTime = (event: HolidayEvent) => {
+  const start = getEventDate(event, "start");
+  if (!start) return "";
+  const hasTime = event.start?.dateTime;
+  const formatter = new Intl.DateTimeFormat("en", hasTime ? {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  } : {
+    weekday: "long",
+  });
+  return formatter.format(start);
 };
 
 export default function DoctorCalendarPage() {
@@ -187,27 +223,43 @@ export default function DoctorCalendarPage() {
   );
 
   const upcomingEvents = useMemo(() => {
-    const all = [
-      ...(events?.primary ?? []),
-      ...(includeHolidays ? events?.holidays ?? [] : []),
-    ];
     const now = new Date();
-    return all
-      .map((event) => ({
-        event,
-        start: getEventDate(event, "start"),
-      }))
+
+    const appointmentItems = (events?.appointments ?? []).map((event) => ({
+      type: "appointment" as const,
+      title: event.title,
+      start: getEventDate(event, "start"),
+      raw: event,
+    }));
+
+    const holidayItems = includeHolidays
+      ? (events?.holidays ?? []).map((event) => ({
+          type: "holiday" as const,
+          title: event.summary ?? "Holiday",
+          start: getEventDate(event, "start"),
+          raw: event,
+        }))
+      : [];
+
+    const sharedItems = (events?.service_events ?? []).map((event) => ({
+      type: "shared" as const,
+      title: event.summary ?? "Shared Event",
+      start: getEventDate(event, "start"),
+      raw: event,
+    }));
+
+    return [...appointmentItems, ...holidayItems, ...sharedItems]
       .filter((item) => item.start && item.start >= now)
       .sort((a, b) => (a.start!.getTime() - b.start!.getTime()))
       .slice(0, 10);
   }, [events, includeHolidays]);
 
   const todos = useMemo(() => {
-    const primary = events?.primary ?? [];
-    return primary.filter((event) => {
+    const appointments = events?.appointments ?? [];
+    return appointments.filter((event) => {
       const category = getCategoryFromEvent(event);
       if (category?.value === "task") return true;
-      const summary = (event.summary || "").toLowerCase();
+      const summary = (event.title || "").toLowerCase();
       return summary.includes("todo") || summary.includes("task");
     });
   }, [events]);
@@ -230,37 +282,33 @@ export default function DoctorCalendarPage() {
       const selectedCategory = categoryOptions.find(
         (opt) => opt.value === formState.category
       )!;
+
       const startDate = new Date(`${formState.date}T${formState.startTime}`);
       const endDate = new Date(`${formState.date}T${formState.endTime}`);
 
-      const payload: CreateCalendarEventRequest = formState.isAllDay
-        ? {
-            summary: formState.title,
-            description: formState.description,
-            start: { date: formState.date },
-            end: { date: formState.date },
-            colorId: selectedCategory.colorId,
-            extendedProperties: {
-              private: {
-                medilinkCategory: selectedCategory.value,
-              },
-            },
-          }
-        : {
-            summary: formState.title,
-            description: formState.description,
-            start: { dateTime: startDate.toISOString() },
-            end: { dateTime: endDate.toISOString() },
-            colorId: selectedCategory.colorId,
-            extendedProperties: {
-              private: {
-                medilinkCategory: selectedCategory.value,
-              },
-            },
-          };
+      let startIso = startDate.toISOString();
+      let endIso = endDate.toISOString();
 
-      await calendarAPI.createEvent(payload);
-      setSuccessMessage("Event added to Google Calendar.");
+      if (formState.isAllDay) {
+        const startOfDay = new Date(formState.date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(formState.date);
+        endOfDay.setHours(23, 59, 59, 999);
+        startIso = startOfDay.toISOString();
+        endIso = endOfDay.toISOString();
+      }
+
+      const payload: CreateAppointmentRequest = {
+        title: formState.title,
+        description: formState.description,
+        start_time: startIso,
+        end_time: endIso,
+        category: selectedCategory.value,
+        is_all_day: formState.isAllDay,
+      };
+
+      await calendarAPI.createAppointment(payload);
+      setSuccessMessage("Appointment saved to MediLink calendar.");
       setFormState((prev) => ({
         ...prev,
         title: "",
@@ -281,7 +329,7 @@ export default function DoctorCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Calendar & Planner</h1>
           <p className="text-gray-600">
-            Syncs directly with your Google Calendar. Create appointments, track todos, and stay on schedule.
+            Manage your MediLink schedule with shared clinic events and national holidays.
           </p>
         </div>
         <Link
@@ -348,7 +396,7 @@ export default function DoctorCalendarPage() {
             {matrix.map((day) => {
               const isToday =
                 day.date.toDateString() === new Date().toDateString();
-              const categoryDots = day.events
+              const categoryDots = day.appointments
                 .map((event) => getCategoryFromEvent(event))
                 .filter(Boolean) as CategoryOption[];
               const limitedDots = categoryDots.slice(0, 4);
@@ -386,14 +434,22 @@ export default function DoctorCalendarPage() {
                         title="Holiday"
                       />
                     )}
-                    {categoryDots.length + day.holidays.length > limitedDots.length + day.holidays.length && (
+                    {day.shared.length > 0 && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: "#0EA5E9" }}
+                        title="Shared"
+                      />
+                    )}
+                    {categoryDots.length + day.holidays.length + day.shared.length >
+                      limitedDots.length + day.holidays.length + day.shared.length && (
                       <span className="text-xs text-slate-400">
                         +{categoryDots.length - limitedDots.length}
                       </span>
                     )}
                   </div>
                   <div className="mt-3 space-y-1.5">
-                    {day.events.slice(0, 3).map((event) => {
+                    {day.appointments.slice(0, 3).map((event) => {
                       const category = getCategoryFromEvent(event);
                       return (
                         <div
@@ -408,18 +464,18 @@ export default function DoctorCalendarPage() {
                               />
                             )}
                             <span className="font-medium text-slate-700">
-                              {event.summary || "Untitled"}
+                              {event.title || "Untitled"}
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-500">
-                            {formatEventTime(event)}
+                            {formatAppointmentTime(event)}
                           </div>
                         </div>
                       );
                     })}
-                    {day.events.length > 3 && (
+                    {day.appointments.length > 3 && (
                       <div className="text-xs text-slate-400">
-                        +{day.events.length - 3} more…
+                        +{day.appointments.length - 3} more…
                       </div>
                     )}
                     {day.holidays.map((holiday) => (
@@ -428,6 +484,14 @@ export default function DoctorCalendarPage() {
                         className="rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-xs text-rose-600"
                       >
                         Holiday: {holiday.summary}
+                      </div>
+                    ))}
+                    {day.shared.map((shared) => (
+                      <div
+                        key={shared.id}
+                        className="rounded-lg border border-sky-100 bg-sky-50 px-2 py-1 text-xs text-sky-600"
+                      >
+                        Shared: {shared.summary}
                       </div>
                     ))}
                   </div>
@@ -453,7 +517,7 @@ export default function DoctorCalendarPage() {
               </span>
             </div>
             <p className="text-sm text-slate-500">
-              New entries sync instantly with Google Calendar.
+              New entries are stored in MediLink and visible to you immediately.
             </p>
 
             <form className="mt-4 space-y-3" onSubmit={submitEvent}>
@@ -563,7 +627,7 @@ export default function DoctorCalendarPage() {
                 disabled={creating}
                 className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
               >
-                {creating ? "Saving…" : "Save to Google Calendar"}
+                {creating ? "Saving…" : "Save appointment"}
               </button>
             </form>
 
@@ -582,24 +646,43 @@ export default function DoctorCalendarPage() {
               {upcomingEvents.length === 0 && (
                 <p className="text-sm text-slate-500">No events scheduled yet.</p>
               )}
-              {upcomingEvents.map(({ event, start }) => {
-                const category = getCategoryFromEvent(event);
+              {upcomingEvents.map(({ type, title, start, raw }) => {
+                const category =
+                  type === "appointment"
+                    ? getCategoryFromEvent(raw as Appointment)
+                    : null;
+                const badgeColor =
+                  type === "holiday"
+                    ? holidayCategory.color
+                    : type === "shared"
+                    ? "#0EA5E9"
+                    : category?.color;
+                const badgeLabel =
+                  type === "holiday"
+                    ? "Holiday"
+                    : type === "shared"
+                    ? "Shared"
+                    : category?.label;
+                const timeLabel =
+                  type === "holiday"
+                    ? formatHolidayTime(raw as HolidayEvent)
+                    : formatAppointmentTime(raw as Appointment);
                 return (
                   <div
-                    key={event.id}
+                    key={`${type}-${(raw as any).id}-${start?.toISOString() ?? "all-day"}`}
                     className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
                   >
                     <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-                      <span>{event.summary || "Untitled"}</span>
-                      {category && (
+                      <span>{title || "Untitled"}</span>
+                      {badgeColor && badgeLabel && (
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
                           style={{
-                            backgroundColor: `${category.color}1A`,
-                            color: category.color,
+                            backgroundColor: `${badgeColor}1A`,
+                            color: badgeColor,
                           }}
                         >
-                          {category.label}
+                          {badgeLabel}
                         </span>
                       )}
                     </div>
@@ -612,7 +695,7 @@ export default function DoctorCalendarPage() {
                             hour: "numeric",
                             minute: "2-digit",
                           }).format(start)
-                        : "All day"}
+                        : timeLabel}
                     </div>
                   </div>
                 );
@@ -637,10 +720,10 @@ export default function DoctorCalendarPage() {
                   >
                     <div>
                       <p className="font-semibold text-orange-600">
-                        {todo.summary || "Untitled task"}
+                        {todo.title || "Untitled task"}
                       </p>
                       <p className="text-xs text-orange-500">
-                        {formatEventTime(todo)}
+                        {formatAppointmentTime(todo)}
                       </p>
                     </div>
                     <span className="text-xs text-orange-400">
