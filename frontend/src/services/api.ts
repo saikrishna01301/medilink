@@ -256,10 +256,13 @@ export interface DoctorProfile {
   specialty: string;
   bio?: string;
   photo_url?: string;
+  cover_photo_url?: string;
   years_of_experience?: number;
   medical_license_number?: string;
   board_certifications?: string[];
   languages_spoken?: string[];
+  accepting_new_patients: boolean;
+  offers_virtual_visits: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -296,16 +299,20 @@ export interface DoctorProfileData {
   };
   profile: DoctorProfile | null;
   clinics: DoctorClinic[];
+  social_links: DoctorSocialLink[];
 }
 
 export interface DoctorProfileUpdate {
   specialty?: string;
   bio?: string;
   photo_url?: string;
+  cover_photo_url?: string;
   years_of_experience?: number;
   medical_license_number?: string;
   board_certifications?: string[];
   languages_spoken?: string[];
+  accepting_new_patients?: boolean;
+  offers_virtual_visits?: boolean;
 }
 
 export interface UserInfoUpdate {
@@ -329,6 +336,37 @@ export interface DoctorListItem {
   years_of_experience?: number | null;
   languages_spoken: string[];
   board_certifications: string[];
+  accepting_new_patients: boolean;
+  offers_virtual_visits: boolean;
+  cover_photo_url?: string | null;
+}
+
+export interface DoctorSocialLink {
+  id: number;
+  doctor_profile_id: number;
+  platform: string;
+  url: string;
+  display_label?: string | null;
+  is_visible: boolean;
+  display_order?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoctorSocialLinkCreatePayload {
+  platform: string;
+  url: string;
+  display_label?: string;
+  is_visible?: boolean;
+  display_order?: number;
+}
+
+export interface DoctorSocialLinkUpdatePayload {
+  platform?: string;
+  url?: string;
+  display_label?: string;
+  is_visible?: boolean;
+  display_order?: number;
 }
 
 export interface Appointment {
@@ -465,6 +503,61 @@ export const doctorAPI = {
     return apiFetch<{ message: string }>("/doctors/profile-picture", {
       method: "DELETE",
       defaultError: "Failed to delete profile picture",
+    });
+  },
+
+  uploadCoverPhoto: async (file: File): Promise<{ message: string; cover_photo_url: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return apiFetch<{ message: string; cover_photo_url: string }>("/doctors/upload-cover-photo", {
+      method: "POST",
+      body: formData,
+      defaultError: "Failed to upload cover photo",
+    });
+  },
+
+  deleteCoverPhoto: async (): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>("/doctors/cover-photo", {
+      method: "DELETE",
+      defaultError: "Failed to delete cover photo",
+    });
+  },
+
+  listSocialLinks: async (): Promise<DoctorSocialLink[]> => {
+    return apiFetch<DoctorSocialLink[]>("/doctors/social-links", {
+      method: "GET",
+      defaultError: "Failed to fetch social links",
+    });
+  },
+
+  createSocialLink: async (payload: DoctorSocialLinkCreatePayload): Promise<DoctorSocialLink> => {
+    return apiFetch<DoctorSocialLink>("/doctors/social-links", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to create social link",
+    });
+  },
+
+  updateSocialLink: async (linkId: number, payload: DoctorSocialLinkUpdatePayload): Promise<DoctorSocialLink> => {
+    return apiFetch<DoctorSocialLink>(`/doctors/social-links/${linkId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to update social link",
+    });
+  },
+
+  deleteSocialLink: async (linkId: number): Promise<void> => {
+    await apiFetch<void>(`/doctors/social-links/${linkId}`, {
+      method: "DELETE",
+      expectJson: false,
+      defaultError: "Failed to delete social link",
     });
   },
 };

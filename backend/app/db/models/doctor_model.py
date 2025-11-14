@@ -1,6 +1,16 @@
 from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, DateTime, ForeignKey, Integer, func, Text, ARRAY
+from sqlalchemy import (
+    String,
+    DateTime,
+    ForeignKey,
+    Integer,
+    func,
+    Text,
+    ARRAY,
+    Boolean,
+    SmallInteger,
+)
 from datetime import datetime
 from db.base import Base
 
@@ -29,6 +39,9 @@ class DoctorProfile(Base):
     medical_license_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     board_certifications: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)
     languages_spoken: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)
+    cover_photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    accepting_new_patients: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    offers_virtual_visits: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, server_default=func.now(), onupdate=func.now())
@@ -36,4 +49,41 @@ class DoctorProfile(Base):
     # Relationship back to User model
     # This allows: doctor_profile.user.first_name, doctor_profile.user.email, etc.
     user: Mapped["User"] = relationship(back_populates="doctor_profile")
+    social_links: Mapped[List["DoctorSocialLink"]] = relationship(
+        back_populates="doctor_profile",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="DoctorSocialLink.display_order",
+    )
+
+
+class DoctorSocialLink(Base):
+    """
+    Social media links associated with a doctor profile.
+    """
+
+    __tablename__ = "doctor_social_links"
+
+    id: Mapped[int] = mapped_column("social_link_id", primary_key=True, index=True)
+    doctor_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("doctor_profiles.profile_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    display_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    display_order: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    doctor_profile: Mapped[DoctorProfile] = relationship(back_populates="social_links")
 

@@ -18,6 +18,7 @@ import {
   getEventDateKey,
   getMonthGridBounds,
 } from "@/utils/calendar";
+import NeumorphismClock from "@/components/doctor/NeumorphismClock";
 
 type CategoryOption = {
   value: "appointment" | "task" | "personal";
@@ -168,7 +169,6 @@ export default function DoctorCalendarPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeHolidays, setIncludeHolidays] = useState(true);
-  const [clock, setClock] = useState(() => new Date());
   const [formState, setFormState] = useState({
     title: "",
     description: "",
@@ -185,11 +185,6 @@ export default function DoctorCalendarPage() {
     () => getMonthGridBounds(anchorDate),
     [anchorDate]
   );
-
-  useEffect(() => {
-    const interval = setInterval(() => setClock(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -503,20 +498,14 @@ export default function DoctorCalendarPage() {
 
         {/* Planner & Actions */}
         <section className="flex flex-col gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <NeumorphismClock />
+          </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Create event / task
-              </h2>
-              <span className="text-3xl font-bold text-slate-700">
-                {new Intl.DateTimeFormat("en", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                  second: "2-digit",
-                }).format(clock)}
-              </span>
-            </div>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Create event / task
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
               New entries are stored in MediLink and visible to you immediately.
             </p>
 

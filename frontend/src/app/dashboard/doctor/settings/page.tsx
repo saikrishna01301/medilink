@@ -1,10 +1,37 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { doctorAPI, DoctorProfileData, DoctorProfileUpdate, UserInfoUpdate } from "@/services/api";
+import {
+  doctorAPI,
+  DoctorProfileData,
+  DoctorProfileUpdate,
+  UserInfoUpdate,
+  DoctorSocialLink,
+  DoctorSocialLinkCreatePayload,
+  DoctorSocialLinkUpdatePayload,
+} from "@/services/api";
 import { APIError } from "@/services/api";
 import { formatSpecialty } from "@/utils/formatSpecialty";
+
+const SOCIAL_PLATFORM_OPTIONS = [
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "facebook", label: "Facebook" },
+  { value: "instagram", label: "Instagram" },
+  { value: "x", label: "X (Twitter)" },
+  { value: "youtube", label: "YouTube" },
+  { value: "doximity", label: "Doximity" },
+  { value: "researchgate", label: "ResearchGate" },
+  { value: "custom", label: "Custom" },
+];
+
+type SocialLinkFormState = {
+  platform: string;
+  url: string;
+  display_label: string;
+  is_visible: boolean;
+  display_order: string;
+};
 
 export default function SettingsPage() {
   const { user, setUser } = useAuth();
@@ -32,6 +59,8 @@ export default function SettingsPage() {
     medical_license_number: "",
     board_certifications: [] as string[],
     languages_spoken: [] as string[],
+    accepting_new_patients: false,
+    offers_virtual_visits: false,
   });
 
   const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([]);
@@ -44,6 +73,29 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoVersion, setPhotoVersion] = useState(0); // For cache-busting
   const [lastUploadedPhotoUrl, setLastUploadedPhotoUrl] = useState<string | null>(null); // Track last uploaded photo
+
+  // Cover photo state
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState<string | null>(null);
+  const [coverPhotoVersion, setCoverPhotoVersion] = useState(0);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [deletingCover, setDeletingCover] = useState(false);
+
+  // Social links state
+  const [socialLinks, setSocialLinks] = useState<DoctorSocialLink[]>([]);
+  const [editingSocialLinkId, setEditingSocialLinkId] = useState<number | null>(null);
+  const [socialLinkDraft, setSocialLinkDraft] = useState<SocialLinkFormState | null>(null);
+  const [newSocialLink, setNewSocialLink] = useState<SocialLinkFormState>({
+    platform: "",
+    url: "",
+    display_label: "",
+    is_visible: true,
+    display_order: "",
+  });
+  const [creatingSocialLink, setCreatingSocialLink] = useState(false);
+  const [updatingSocialLink, setUpdatingSocialLink] = useState(false);
+  const [deletingSocialLinkId, setDeletingSocialLinkId] = useState<number | null>(null);
+  const [togglingVisibilityId, setTogglingVisibilityId] = useState<number | null>(null);
 
   useEffect(() => {
     loadProfileData();
@@ -87,45 +139,50 @@ export default function SettingsPage() {
     }
   }, [user, profileData]);
 
+  const syncProfileState = useCallback((data: DoctorProfileData) => {
+    setProfileData(data);
+
+    setUserInfo({
+      first_name: data.user.first_name || user?.first_name || "",
+      middle_name: data.user.middle_name || "",
+      last_name: data.user.last_name || user?.last_name || "",
+      phone: data.user.phone || user?.phone || "",
+      emergency_contact: data.user.emergency_contact || "",
+    });
+
+    const profile = data.profile;
+    const updatedProfileInfo = {
+      specialty: profile?.specialty || "",
+      bio: profile?.bio || "",
+      years_of_experience: profile?.years_of_experience?.toString() || "",
+      medical_license_number: profile?.medical_license_number || "",
+      board_certifications: profile?.board_certifications || [],
+      languages_spoken: profile?.languages_spoken || [],
+      accepting_new_patients: profile?.accepting_new_patients ?? false,
+      offers_virtual_visits: profile?.offers_virtual_visits ?? false,
+    };
+    setProfileInfo(updatedProfileInfo);
+
+    if (profile?.specialty) {
+      setSpecialtyOptions((prev) => {
+        if (prev.includes(profile.specialty)) {
+          return prev;
+        }
+        return [...prev, profile.specialty];
+      });
+    }
+
+    setLastUploadedPhotoUrl(profile?.photo_url || null);
+    setCoverPhotoUrl(profile?.cover_photo_url || null);
+    setSocialLinks(data.social_links || []);
+  }, [user]);
+
   const loadProfileData = async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await doctorAPI.getProfile();
-      setProfileData(data);
-
-      // Populate user info - use auth context user as fallback
-      setUserInfo({
-        first_name: data.user.first_name || user?.first_name || "",
-        middle_name: data.user.middle_name || "",
-        last_name: data.user.last_name || user?.last_name || "",
-        phone: data.user.phone || user?.phone || "",
-        emergency_contact: data.user.emergency_contact || "",
-      });
-
-      // Populate profile info
-      if (data.profile) {
-        setProfileInfo({
-          specialty: data.profile.specialty || "",
-          bio: data.profile.bio || "",
-          years_of_experience: data.profile.years_of_experience?.toString() || "",
-          medical_license_number: data.profile.medical_license_number || "",
-          board_certifications: data.profile.board_certifications || [],
-          languages_spoken: data.profile.languages_spoken || [],
-        });
-        const profileSpecialty = data.profile.specialty;
-        if (profileSpecialty) {
-          setSpecialtyOptions((prev) => {
-            if (prev.includes(profileSpecialty)) {
-              return prev;
-            }
-            return [...prev, profileSpecialty];
-          });
-        }
-        setLastUploadedPhotoUrl(data.profile.photo_url || null);
-      } else {
-        setLastUploadedPhotoUrl(null);
-      }
+      syncProfileState(data);
     } catch (err) {
       if (err instanceof APIError) {
         setError(err.detail || "Failed to load profile data");
@@ -152,7 +209,7 @@ export default function SettingsPage() {
       };
 
       const updated = await doctorAPI.updateUserInfo(updateData);
-      setProfileData(updated);
+      syncProfileState(updated);
       setEditingSection(null);
       setSuccess("User information updated successfully!");
       setTimeout(() => setSuccess(null), 3000);
@@ -186,10 +243,12 @@ export default function SettingsPage() {
         languages_spoken: profileInfo.languages_spoken.length > 0
           ? profileInfo.languages_spoken
           : undefined,
+      accepting_new_patients: profileInfo.accepting_new_patients,
+      offers_virtual_visits: profileInfo.offers_virtual_visits,
       };
 
       const updated = await doctorAPI.updateProfile(updateData);
-      setProfileData(updated);
+      syncProfileState(updated);
       
       // Update profile info state
       if (updated.profile) {
@@ -369,6 +428,306 @@ export default function SettingsPage() {
 
   const hasProfilePhoto = Boolean(displayPhotoUrl);
 
+  const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Invalid file type. Please upload a JPEG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setError("File size exceeds 8MB limit.");
+      return;
+    }
+
+    try {
+      setUploadingCover(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await doctorAPI.uploadCoverPhoto(file);
+      setCoverPhotoUrl(response.cover_photo_url);
+      await loadProfileData();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      setCoverPhotoVersion((prev) => prev + 1);
+
+      setSuccess("Cover photo uploaded successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+
+      if (coverFileInputRef.current) {
+        coverFileInputRef.current.value = "";
+      }
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to upload cover photo");
+      } else {
+        setError("An unexpected error occurred while uploading the cover photo");
+      }
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleCoverDelete = async () => {
+    if (!confirm("Are you sure you want to delete your cover photo?")) {
+      return;
+    }
+
+    try {
+      setDeletingCover(true);
+      setError(null);
+      setSuccess(null);
+
+      await doctorAPI.deleteCoverPhoto();
+      setCoverPhotoUrl(null);
+      await loadProfileData();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      setCoverPhotoVersion((prev) => prev + 1);
+
+      setSuccess("Cover photo deleted successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to delete cover photo");
+      } else {
+        setError("An unexpected error occurred while deleting the cover photo");
+      }
+    } finally {
+      setDeletingCover(false);
+    }
+  };
+
+  const startEditingSocialLink = (link: DoctorSocialLink) => {
+    setEditingSocialLinkId(link.id);
+    setSocialLinkDraft({
+      platform: link.platform || "",
+      url: link.url || "",
+      display_label: link.display_label || "",
+      is_visible: link.is_visible,
+      display_order: link.display_order != null ? String(link.display_order) : "",
+    });
+  };
+
+  const cancelEditingSocialLink = () => {
+    setEditingSocialLinkId(null);
+    setSocialLinkDraft(null);
+  };
+
+  const handleSaveSocialLink = async () => {
+    if (editingSocialLinkId == null || !socialLinkDraft) {
+      return;
+    }
+
+    const trimmedPlatform = socialLinkDraft.platform.trim();
+    const trimmedUrl = socialLinkDraft.url.trim();
+    if (!trimmedPlatform || !trimmedUrl) {
+      setError("Platform and URL are required.");
+      return;
+    }
+
+    const displayOrderValue = socialLinkDraft.display_order.trim();
+    let displayOrderNumber: number | undefined;
+    if (displayOrderValue) {
+      const parsed = Number(displayOrderValue);
+      if (Number.isNaN(parsed)) {
+        setError("Display order must be a number.");
+        return;
+      }
+      displayOrderNumber = parsed;
+    }
+
+    const payload: DoctorSocialLinkUpdatePayload = {
+      platform: trimmedPlatform,
+      url: trimmedUrl,
+      display_label: socialLinkDraft.display_label.trim() || undefined,
+      is_visible: socialLinkDraft.is_visible,
+      display_order: displayOrderNumber,
+    };
+
+    try {
+      setUpdatingSocialLink(true);
+      setError(null);
+      setSuccess(null);
+
+      const updatedLink = await doctorAPI.updateSocialLink(editingSocialLinkId, payload);
+
+      setSocialLinks((prev) =>
+        prev.map((link) => (link.id === updatedLink.id ? updatedLink : link))
+      );
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              social_links: (prev.social_links ?? []).map((link) =>
+                link.id === updatedLink.id ? updatedLink : link
+              ),
+            }
+          : prev
+      );
+
+      setSuccess("Social link updated successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+      cancelEditingSocialLink();
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to update social link");
+      } else {
+        setError("An unexpected error occurred while updating the social link");
+      }
+    } finally {
+      setUpdatingSocialLink(false);
+    }
+  };
+
+  const handleCreateSocialLink = async () => {
+    const trimmedPlatform = newSocialLink.platform.trim();
+    const trimmedUrl = newSocialLink.url.trim();
+    if (!trimmedPlatform || !trimmedUrl) {
+      setError("Platform and URL are required.");
+      return;
+    }
+
+    const displayOrderValue = newSocialLink.display_order.trim();
+    let displayOrderNumber: number | undefined;
+    if (displayOrderValue) {
+      const parsed = Number(displayOrderValue);
+      if (Number.isNaN(parsed)) {
+        setError("Display order must be a number.");
+        return;
+      }
+      displayOrderNumber = parsed;
+    }
+
+    const payload: DoctorSocialLinkCreatePayload = {
+      platform: trimmedPlatform,
+      url: trimmedUrl,
+      display_label: newSocialLink.display_label.trim() || undefined,
+      is_visible: newSocialLink.is_visible,
+      display_order: displayOrderNumber,
+    };
+
+    try {
+      setCreatingSocialLink(true);
+      setError(null);
+      setSuccess(null);
+
+      const createdLink = await doctorAPI.createSocialLink(payload);
+      setSocialLinks((prev) => [...prev, createdLink]);
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              social_links: [...(prev.social_links ?? []), createdLink],
+            }
+          : prev
+      );
+
+      setNewSocialLink({
+        platform: "",
+        url: "",
+        display_label: "",
+        is_visible: true,
+        display_order: "",
+      });
+
+      setSuccess("Social link added successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to create social link");
+      } else {
+        setError("An unexpected error occurred while creating the social link");
+      }
+    } finally {
+      setCreatingSocialLink(false);
+    }
+  };
+
+  const handleDeleteSocialLink = async (linkId: number) => {
+    if (!confirm("Delete this social link?")) {
+      return;
+    }
+
+    try {
+      setDeletingSocialLinkId(linkId);
+      setError(null);
+      setSuccess(null);
+
+      await doctorAPI.deleteSocialLink(linkId);
+      setSocialLinks((prev) => prev.filter((link) => link.id !== linkId));
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              social_links: (prev.social_links ?? []).filter((link) => link.id !== linkId),
+            }
+          : prev
+      );
+
+      setSuccess("Social link deleted successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to delete social link");
+      } else {
+        setError("An unexpected error occurred while deleting the social link");
+      }
+    } finally {
+      setDeletingSocialLinkId(null);
+    }
+  };
+
+  const handleToggleSocialLinkVisibility = async (link: DoctorSocialLink) => {
+    try {
+      setTogglingVisibilityId(link.id);
+      setError(null);
+      setSuccess(null);
+
+      const updatedLink = await doctorAPI.updateSocialLink(link.id, {
+        is_visible: !link.is_visible,
+      });
+
+      setSocialLinks((prev) =>
+        prev.map((item) => (item.id === updatedLink.id ? updatedLink : item))
+      );
+      setProfileData((prev) =>
+        prev
+          ? {
+              ...prev,
+              social_links: (prev.social_links ?? []).map((item) =>
+                item.id === updatedLink.id ? updatedLink : item
+              ),
+            }
+          : prev
+      );
+
+      setSuccess(
+        updatedLink.is_visible
+          ? "Social link will now display on your profile."
+          : "Social link is hidden from your profile."
+      );
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to update social link visibility");
+      } else {
+        setError("An unexpected error occurred while updating visibility");
+      }
+    } finally {
+      setTogglingVisibilityId(null);
+    }
+  };
+
+  const coverDisplayUrl =
+    coverPhotoUrl ??
+    profileData?.profile?.cover_photo_url ??
+    null;
+
+  const hasCoverPhoto = Boolean(coverDisplayUrl);
+
   const specialtyChoices = useMemo(() => {
     const unique = new Set(
       specialtyOptions
@@ -407,6 +766,308 @@ export default function SettingsPage() {
           <p className="text-gray-600">Manage your account information and profile details</p>
         </div>
 
+        {/* Social Links Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Social Presence</h2>
+                <p className="text-gray-600">
+                  Add links to your professional social profiles and choose whether to display them publicly.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {socialLinks.length === 0 ? (
+                <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500">
+                  No social links added yet. Use the form below to add your first link.
+                </div>
+              ) : (
+                [...socialLinks]
+                  .sort((a, b) => {
+                    const orderA = a.display_order ?? 9999;
+                    const orderB = b.display_order ?? 9999;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return a.id - b.id;
+                  })
+                  .map((link) => {
+                    const isEditing = editingSocialLinkId === link.id && socialLinkDraft;
+                    return (
+                      <div
+                        key={link.id}
+                        className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3"
+                      >
+                        {isEditing ? (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Platform *
+                                </label>
+                                <input
+                                  list="social-platforms"
+                                  value={socialLinkDraft.platform}
+                                  onChange={(e) =>
+                                    setSocialLinkDraft({
+                                      ...socialLinkDraft,
+                                      platform: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                                  placeholder="LinkedIn, Instagram, etc."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Display Label
+                                </label>
+                                <input
+                                  type="text"
+                                  value={socialLinkDraft.display_label}
+                                  onChange={(e) =>
+                                    setSocialLinkDraft({
+                                      ...socialLinkDraft,
+                                      display_label: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                                  placeholder="Optional label"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  URL *
+                                </label>
+                                <input
+                                  type="url"
+                                  value={socialLinkDraft.url}
+                                  onChange={(e) =>
+                                    setSocialLinkDraft({
+                                      ...socialLinkDraft,
+                                      url: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                                  placeholder="https://example.com/profile"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Display Order
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={socialLinkDraft.display_order}
+                                  onChange={(e) =>
+                                    setSocialLinkDraft({
+                                      ...socialLinkDraft,
+                                      display_order: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                                  placeholder="Optional"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={socialLinkDraft.is_visible}
+                                  onChange={(e) =>
+                                    setSocialLinkDraft({
+                                      ...socialLinkDraft,
+                                      is_visible: e.target.checked,
+                                    })
+                                  }
+                                  className="h-4 w-4 border-gray-300 rounded"
+                                  id={`social-visible-${link.id}`}
+                                />
+                                <label
+                                  htmlFor={`social-visible-${link.id}`}
+                                  className="text-sm text-gray-700"
+                                >
+                                  Display on public profile
+                                </label>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={handleSaveSocialLink}
+                                disabled={updatingSocialLink}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                              >
+                                {updatingSocialLink ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                onClick={cancelEditingSocialLink}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-lg font-semibold text-gray-900 capitalize">
+                                    {link.display_label || link.platform}
+                                  </h3>
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded-full ${
+                                      link.is_visible
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-gray-200 text-gray-600"
+                                    }`}
+                                  >
+                                    {link.is_visible ? "Visible" : "Hidden"}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-500">
+                                  Platform: {link.platform}
+                                  {link.display_order != null
+                                    ? ` • Order: ${link.display_order}`
+                                    : ""}
+                                </p>
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 text-sm break-all"
+                                >
+                                  {link.url}
+                                </a>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => startEditingSocialLink(link)}
+                                  className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleToggleSocialLinkVisibility(link)}
+                                  disabled={togglingVisibilityId === link.id}
+                                  className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition disabled:opacity-50"
+                                >
+                                  {togglingVisibilityId === link.id
+                                    ? "Updating..."
+                                    : link.is_visible
+                                      ? "Hide"
+                                      : "Show"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSocialLink(link.id)}
+                                  disabled={deletingSocialLinkId === link.id}
+                                  className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition disabled:opacity-50"
+                                >
+                                  {deletingSocialLinkId === link.id ? "Deleting..." : "Delete"}
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 pt-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Add new link</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Platform *
+                  </label>
+                  <input
+                    list="social-platforms"
+                    value={newSocialLink.platform}
+                    onChange={(e) =>
+                      setNewSocialLink({ ...newSocialLink, platform: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    placeholder="LinkedIn"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Display Label
+                  </label>
+                  <input
+                    type="text"
+                    value={newSocialLink.display_label}
+                    onChange={(e) =>
+                      setNewSocialLink({ ...newSocialLink, display_label: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    placeholder="Optional label"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    URL *
+                  </label>
+                  <input
+                    type="url"
+                    value={newSocialLink.url}
+                    onChange={(e) =>
+                      setNewSocialLink({ ...newSocialLink, url: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    placeholder="https://"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newSocialLink.display_order}
+                    onChange={(e) =>
+                      setNewSocialLink({ ...newSocialLink, display_order: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={newSocialLink.is_visible}
+                    onChange={(e) =>
+                      setNewSocialLink({ ...newSocialLink, is_visible: e.target.checked })
+                    }
+                    className="h-4 w-4 border-gray-300 rounded"
+                    id="new-social-visible"
+                  />
+                  <label htmlFor="new-social-visible" className="text-sm text-gray-700">
+                    Display on public profile
+                  </label>
+                </div>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={handleCreateSocialLink}
+                  disabled={creatingSocialLink}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {creatingSocialLink ? "Adding..." : "Add Link"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <datalist id="social-platforms">
+            {SOCIAL_PLATFORM_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value} label={option.label} />
+            ))}
+          </datalist>
+        </div>
         {/* Success/Error Messages */}
         {success && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -502,6 +1163,78 @@ export default function SettingsPage() {
                   Supported formats: JPEG, PNG, WebP. Max size: 5MB
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Cover Photo Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Cover Photo</h2>
+              <p className="text-gray-600 mb-4">
+                Upload a banner image that appears at the top of your public profile.
+              </p>
+
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 overflow-hidden">
+                {hasCoverPhoto ? (
+                  <img
+                    key={`cover-${coverPhotoVersion}-${coverDisplayUrl}`}
+                    src={`${coverDisplayUrl}?v=${coverPhotoVersion}&t=${Date.now()}`}
+                    alt="Cover"
+                    className="w-full h-48 md:h-56 lg:h-64 object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-48 md:h-56 lg:h-64 flex flex-col items-center justify-center text-gray-400">
+                    <span className="text-3xl mb-2">🖼️</span>
+                    <span className="text-sm">No cover photo uploaded</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="w-full md:w-64 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Update Cover Photo
+                </label>
+                <input
+                  ref={coverFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleCoverUpload}
+                  disabled={uploadingCover}
+                  className="hidden"
+                  id="cover-upload"
+                />
+                <label
+                  htmlFor="cover-upload"
+                  className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer inline-block ${
+                    uploadingCover ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {uploadingCover
+                    ? "Uploading..."
+                    : hasCoverPhoto
+                      ? "Update Cover"
+                      : "Choose File"}
+                </label>
+                <p className="text-xs text-gray-500 mt-2">
+                  Recommended size: 1600 × 400px. Max size: 8MB. Formats: JPEG, PNG, WebP.
+                </p>
+              </div>
+
+              {hasCoverPhoto && (
+                <button
+                  onClick={handleCoverDelete}
+                  disabled={deletingCover}
+                  className={`w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition ${
+                    deletingCover ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {deletingCover ? "Deleting..." : "Remove Cover"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -848,6 +1581,42 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Practice Availability
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={profileInfo.accepting_new_patients}
+                      onChange={(e) =>
+                        setProfileInfo({
+                          ...profileInfo,
+                          accepting_new_patients: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 border-gray-300 rounded"
+                    />
+                    <span>Accepting new patients</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={profileInfo.offers_virtual_visits}
+                      onChange={(e) =>
+                        setProfileInfo({
+                          ...profileInfo,
+                          offers_virtual_visits: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 border-gray-300 rounded"
+                    />
+                    <span>Offers virtual visits</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveProfile}
@@ -939,6 +1708,35 @@ export default function SettingsPage() {
                   ) : (
                     <p className="text-gray-500">No languages added</p>
                   )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Practice Availability
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      profileData?.profile?.accepting_new_patients
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {profileData?.profile?.accepting_new_patients
+                      ? "Accepting new patients"
+                      : "Not accepting new patients"}
+                  </span>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      profileData?.profile?.offers_virtual_visits
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {profileData?.profile?.offers_virtual_visits
+                      ? "Offers virtual visits"
+                      : "No virtual visits"}
+                  </span>
                 </div>
               </div>
             </div>

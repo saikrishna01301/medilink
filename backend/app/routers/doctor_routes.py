@@ -11,7 +11,13 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.crud import auth_crud, doctor_crud
-from schemas import DoctorProfileUpdate, DoctorProfileRead, DoctorListItem
+from schemas import (
+    DoctorProfileUpdate,
+    DoctorListItem,
+    DoctorSocialLinkCreate,
+    DoctorSocialLinkRead,
+    DoctorSocialLinkUpdate,
+)
 from services import verify_access_token, get_storage_service
 from typing import Dict, Any, List, Optional
 import uuid
@@ -297,4 +303,171 @@ async def delete_profile_picture(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete profile picture: {str(e)}"
         )
+
+
+@router.post("/upload-cover-photo")
+async def upload_cover_photo(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Upload a cover photo for the doctor profile."""
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}",
+        )
+
+    file_content = await file.read()
+    if len(file_content) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds 8MB limit",
+        )
+
+    try:
+        await doctor_crud.ensure_doctor_profile(current_user.id, session)
+
+        storage_service = get_storage_service()
+        cover_prefix = f"doctor-covers/{current_user.id}/"
+        await storage_service.delete_files_by_prefix(cover_prefix)
+
+        file_extension = os.path.splitext(file.filename)[1] or ".jpg"
+        unique_filename = f"doctor-covers/{current_user.id}/{uuid.uuid4()}{file_extension}"
+
+        public_url = await storage_service.upload_file(
+            file_content,
+            unique_filename,
+            content_type=file.content_type,
+        )
+
+        await doctor_crud.update_doctor_profile(
+            current_user.id,
+            {"cover_photo_url": public_url},
+            session,
+        )
+
+        return {
+            "message": "Cover photo uploaded successfully",
+            "cover_photo_url": public_url,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload cover photo: {str(e)}",
+        )
+
+
+@router.delete("/cover-photo")
+async def delete_cover_photo(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete the doctor's cover photo."""
+    try:
+        profile = await doctor_crud.get_doctor_profile(current_user.id, session)
+
+        if not profile or not profile.cover_photo_url:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No cover photo found",
+            )
+
+        storage_service = get_storage_service()
+        file_path = storage_service.extract_file_path_from_url(profile.cover_photo_url)
+
+        if file_path:
+            await storage_service.delete_file(file_path)
+
+        await doctor_crud.update_doctor_profile(
+            current_user.id,
+            {"cover_photo_url": None},
+            session,
+        )
+
+        return {"message": "Cover photo deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete cover photo: {str(e)}",
+        )
+
+
+@router.get("/social-links", response_model=List[DoctorSocialLinkRead])
+async def list_social_links(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """List social links for the current doctor."""
+    links = await doctor_crud.list_social_links(current_user.id, session)
+    return links
+
+
+@router.post("/social-links", response_model=DoctorSocialLinkRead, status_code=status.HTTP_201_CREATED)
+async def create_social_link(
+    payload: DoctorSocialLinkCreate,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Create a social link for the current doctor."""
+    link = await doctor_crud.create_social_link(
+        current_user.id,
+        payload.model_dump(exclude_unset=True),
+        session,
+    )
+    return link
+
+
+@router.put("/social-links/{link_id}", response_model=DoctorSocialLinkRead)
+async def update_social_link(
+    link_id: int,
+    payload: DoctorSocialLinkUpdate,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update a social link."""
+    update_data = payload.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No data provided for update",
+        )
+
+    link = await doctor_crud.update_social_link(
+        current_user.id,
+        link_id,
+        update_data,
+        session,
+    )
+    if not link:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Social link not found",
+        )
+    return link
+
+
+@router.delete("/social-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_social_link(
+    link_id: int,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a social link."""
+    deleted = await doctor_crud.delete_social_link(
+        current_user.id,
+        link_id,
+        session,
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Social link not found",
+        )
+    return None
 

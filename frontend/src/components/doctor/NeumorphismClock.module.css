@@ -1,0 +1,211 @@
+.wrapper {
+  --neutral-900: rgba(23, 23, 23, 0.98);
+  --slate-800: rgb(30, 41, 59);
+  --slate-700: rgb(51, 65, 85);
+  --slate-500: rgb(100, 116, 139);
+  --slate-400: rgb(148, 163, 184);
+  --slate-300: rgb(203, 213, 225);
+  --slate-200: rgb(234, 236, 243);
+  --red-500: rgb(253, 56, 45);
+  --red-opacity: rgba(251, 8, 0, 0.5);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+}
+
+.clock {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  border: 10px solid rgba(86, 86, 86, 0.045);
+  box-shadow:
+    6px 6px 27px rgba(166, 180, 200, 0.8),
+    -6px -6px 27px rgb(255, 255, 255),
+    inset 20px 20px 12px rgba(166, 180, 200, 0.3),
+    inset 11px 11px 54px rgba(166, 180, 200, 0.8),
+    inset -11px -11px 20px rgb(255, 255, 255);
+  overflow: hidden;
+}
+
+.shapeLine {
+  position: absolute;
+  inset: 0;
+  padding: 20px;
+  border-radius: 50%;
+  transform: rotate(calc(var(--deg) * 1deg));
+}
+
+.shapeLine::before {
+  content: "";
+  display: block;
+  width: 3px;
+  height: 14px;
+  margin: auto;
+  background-color: var(--slate-400);
+  border-radius: 10px;
+}
+
+.text {
+  position: absolute;
+  margin: auto;
+  font-weight: 700;
+  font-size: 20px;
+  width: max-content;
+  height: max-content;
+  color: var(--slate-700);
+}
+
+.text1 {
+  right: 22px;
+  top: 0;
+  bottom: 0;
+}
+
+.text2 {
+  bottom: 16px;
+  left: 0;
+  right: 0;
+}
+
+.text3 {
+  left: 22px;
+  bottom: 0;
+  top: 0;
+}
+
+.text4 {
+  top: 16px;
+  left: 0;
+  right: 0;
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  width: 20px;
+  height: 20px;
+  margin: auto;
+  z-index: 1;
+  background-color: var(--red-500);
+  border-radius: 50%;
+  border: 5px solid var(--slate-700);
+}
+
+.needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: bottom center;
+  border-radius: 10px;
+  background-color: var(--slate-700);
+  transform: translate(-50%, -100%) rotate(0deg);
+}
+
+.hourHand {
+  width: 5px;
+  height: 64px;
+}
+
+.minuteHand {
+  width: 5px;
+  height: 84px;
+}
+
+.secondHand {
+  width: 3px;
+  height: 104px;
+  background-color: var(--red-500);
+  box-shadow: 1px 0 6px 1px var(--red-opacity);
+}
+
+.secondHand::before {
+  content: "";
+  position: absolute;
+  width: 3px;
+  height: 30px;
+  background-color: var(--red-500);
+  bottom: -30px;
+  border-radius: 10px;
+  box-shadow: 1px 0 6px 1px var(--red-opacity);
+}
+
+.timeBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.time {
+  position: relative;
+  font-weight: 500;
+  font-size: 4rem;
+  color: var(--slate-800);
+  line-height: 1;
+}
+
+.period {
+  font-size: 0.9rem;
+  position: absolute;
+  top: -8px;
+  right: -28px;
+  color: var(--slate-500);
+  letter-spacing: 0.05em;
+}
+
+.date {
+  color: var(--slate-500);
+  font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+  .clock {
+    width: 280px;
+    height: 280px;
+  }
+
+  .hourHand {
+    height: 54px;
+  }
+
+  .minuteHand {
+    height: 70px;
+  }
+
+  .secondHand {
+    height: 86px;
+  }
+}
+
+@media (max-width: 340px) {
+  .clock {
+    width: 240px;
+    height: 240px;
+  }
+
+  .hourHand {
+    height: 48px;
+  }
+
+  .minuteHand {
+    height: 62px;
+  }
+
+  .secondHand {
+    height: 76px;
+  }
+
+  .time {
+    font-size: 3.5rem;
+  }
+
+  .period {
+    font-size: 0.8rem;
+  }
+}
+
