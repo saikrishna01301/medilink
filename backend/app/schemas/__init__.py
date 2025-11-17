@@ -11,6 +11,7 @@ from .doctor_schema import (
     DoctorSocialLinkRead,
 )
 from .appointment_schema import AppointmentCreate, AppointmentRead
+from .address_schema import AddressUpdate, AddressRead
 
 __all__ = [
     UserLogin,
@@ -27,4 +28,6 @@ __all__ = [
     DoctorSocialLinkRead,
     AppointmentCreate,
     AppointmentRead,
+    AddressUpdate,
+    AddressRead,
 ]

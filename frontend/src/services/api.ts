@@ -69,6 +69,28 @@ export interface CurrentUserResponse {
   accepted_terms: boolean;
 }
 
+export interface Address {
+  address_id: number;
+  user_id: number;
+  label?: string | null;
+  address_line1: string;
+  address_line2?: string | null;
+  city: string;
+  state?: string | null;
+  postal_code?: string | null;
+  country_code?: string | null;
+  formatted_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  place_id?: string | null;
+  location_source?: string | null;
+  timezone?: string | null;
+  raw_geocoding_payload?: string | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Error type
 export class APIError extends Error {
   constructor(
@@ -245,6 +267,39 @@ export const authAPI = {
       },
       body: JSON.stringify(data),
       defaultError: "Failed to create patient account",
+    });
+  },
+
+  // Get current user's primary address (doctor or patient)
+  getAddress: async (): Promise<Address | null> => {
+    return apiFetch<Address | null>("/auth/address", {
+      method: "GET",
+      defaultError: "Failed to fetch address",
+    });
+  },
+
+  // Create or update current user's primary address
+  upsertAddress: async (
+    data: Partial<
+      Pick<
+        Address,
+        | "address_line1"
+        | "address_line2"
+        | "city"
+        | "state"
+        | "postal_code"
+        | "country_code"
+        | "label"
+      >
+    >
+  ): Promise<Address> => {
+    return apiFetch<Address>("/auth/address", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      defaultError: "Failed to update address",
     });
   },
 };

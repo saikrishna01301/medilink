@@ -1,8 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
-from db.crud import auth_crud as crud
-from schemas import CreateUser, UserLogin, ReadUser, OTPVerification
+from db.crud import auth_crud as crud, address_crud
+from schemas import (
+    CreateUser,
+    UserLogin,
+    ReadUser,
+    OTPVerification,
+    AddressUpdate,
+    AddressRead,
+)
 from services import create_tokens, hash_password, verify_password, verify_access_token
 from datetime import datetime
 import json
@@ -568,3 +575,49 @@ async def get_me(current_user = Depends(get_current_user)):
             created_at=current_user.created_at,
             updated_at=current_user.updated_at,
         )
+
+
+@router.get("/address", response_model=AddressRead | None)
+async def get_my_address(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Return the current user's primary address, if one exists.
+    Shared by both doctor and patient account settings pages.
+    """
+    address = await address_crud.get_primary_address_for_user(current_user.id, session)
+    return address
+
+
+@router.put("/address", response_model=AddressRead)
+async def upsert_my_address(
+    payload: AddressUpdate,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Create or update the current user's primary address.
+
+    At minimum, address_line1 and city must be provided; other fields are optional.
+    """
+    data = payload.model_dump(exclude_unset=True)
+
+    required_fields = ["address_line1", "city"]
+    if any(not data.get(field) for field in required_fields):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="address_line1 and city are required fields.",
+        )
+
+    # Normalize basic fields
+    if "country_code" in data and data["country_code"]:
+        data["country_code"] = data["country_code"].upper()
+
+    # For now, mark the source as manual; geocoding can be layered later.
+    data.setdefault("location_source", "manual")
+
+    address = await address_crud.upsert_primary_address_for_user(
+        current_user.id, data, session
+    )
+    return address

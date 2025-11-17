@@ -10,6 +10,8 @@ import {
   DoctorSocialLink,
   DoctorSocialLinkCreatePayload,
   DoctorSocialLinkUpdatePayload,
+  authAPI,
+  Address,
 } from "@/services/api";
 import { APIError } from "@/services/api";
 import { formatSpecialty } from "@/utils/formatSpecialty";
@@ -97,9 +99,50 @@ export default function SettingsPage() {
   const [deletingSocialLinkId, setDeletingSocialLinkId] = useState<number | null>(null);
   const [togglingVisibilityId, setTogglingVisibilityId] = useState<number | null>(null);
 
+  // Address form state (shared with patient settings API)
+  const [address, setAddress] = useState<{
+    address_line1: string;
+    address_line2: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country_code: string;
+    label: string;
+  }>({
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    country_code: "US",
+    label: "Primary Clinic",
+  });
+
   useEffect(() => {
     loadProfileData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const loadAddress = async () => {
+      try {
+        const existing = await authAPI.getAddress();
+        if (existing) {
+          setAddress({
+            address_line1: existing.address_line1,
+            address_line2: existing.address_line2 ?? "",
+            city: existing.city,
+            state: existing.state ?? "",
+            postal_code: existing.postal_code ?? "",
+            country_code: existing.country_code ?? "US",
+            label: existing.label ?? "Primary Clinic",
+          });
+        }
+      } catch {
+        // Address is optional; ignore errors here
+      }
+    };
+    loadAddress();
   }, []);
 
   useEffect(() => {
@@ -270,6 +313,48 @@ export default function SettingsPage() {
         setError(err.detail || "Failed to update profile");
       } else {
         setError("An unexpected error occurred");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const payload = {
+        address_line1: address.address_line1.trim(),
+        address_line2: address.address_line2.trim() || undefined,
+        city: address.city.trim(),
+        state: address.state.trim() || undefined,
+        postal_code: address.postal_code.trim() || undefined,
+        country_code: address.country_code.trim() || undefined,
+        label: address.label.trim() || undefined,
+      };
+
+      const updated = await authAPI.upsertAddress(payload);
+
+      // Normalize state from server response
+      setAddress({
+        address_line1: updated.address_line1,
+        address_line2: updated.address_line2 ?? "",
+        city: updated.city,
+        state: updated.state ?? "",
+        postal_code: updated.postal_code ?? "",
+        country_code: updated.country_code ?? "",
+        label: updated.label ?? "Primary Clinic",
+      });
+
+      setSuccess("Address updated successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to update address");
+      } else {
+        setError("An unexpected error occurred while updating the address");
       }
     } finally {
       setSaving(false);
@@ -1396,6 +1481,125 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Address Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Primary Address</h2>
+          </div>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Address Line 1 *
+                </label>
+                <input
+                  type="text"
+                  value={address.address_line1}
+                  onChange={(e) =>
+                    setAddress({ ...address, address_line1: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="Street address line 1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Address Line 2
+                </label>
+                <input
+                  type="text"
+                  value={address.address_line2}
+                  onChange={(e) =>
+                    setAddress({ ...address, address_line2: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="Apartment, suite, etc. (optional)"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City *
+                </label>
+                <input
+                  type="text"
+                  value={address.city}
+                  onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  State / Region
+                </label>
+                <input
+                  type="text"
+                  value={address.state}
+                  onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="State or region"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Postal / ZIP Code
+                </label>
+                <input
+                  type="text"
+                  value={address.postal_code}
+                  onChange={(e) =>
+                    setAddress({ ...address, postal_code: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="Postal or ZIP code"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country Code
+                </label>
+                <input
+                  type="text"
+                  value={address.country_code}
+                  maxLength={2}
+                  onChange={(e) =>
+                    setAddress({
+                      ...address,
+                      country_code: e.target.value.toUpperCase(),
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="e.g. US"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Label
+                </label>
+                <input
+                  type="text"
+                  value={address.label}
+                  onChange={(e) =>
+                    setAddress({ ...address, label: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  placeholder="Primary Clinic, Home, etc."
+                />
+              </div>
+              <button
+                onClick={handleSaveAddress}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {saving ? "Saving Address..." : "Save Address"}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Professional Profile Section */}

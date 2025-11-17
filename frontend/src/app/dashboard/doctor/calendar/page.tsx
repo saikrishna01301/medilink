@@ -335,169 +335,9 @@ export default function DoctorCalendarPage() {
         </Link>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        {/* Main Calendar Panel */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setAnchorDate(
-                    new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 1, 1)
-                  )
-                }
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-              >
-                Previous
-              </button>
-              <div className="text-lg font-semibold text-slate-900">
-                {monthLabel(anchorDate)}
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setAnchorDate(
-                    new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1)
-                  )
-                }
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-              >
-                Next
-              </button>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <label className="flex items-center gap-2 text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={includeHolidays}
-                  onChange={(e) => setIncludeHolidays(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Show holidays
-              </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            {weekdayShort.map((label) => (
-              <div key={label} className="text-center">
-                {label}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-2 grid grid-cols-7 gap-3 text-sm">
-            {matrix.map((day) => {
-              const isToday =
-                day.date.toDateString() === new Date().toDateString();
-              const categoryDots = day.appointments
-                .map((event) => getCategoryFromEvent(event))
-                .filter(Boolean) as CategoryOption[];
-              const limitedDots = categoryDots.slice(0, 4);
-
-              return (
-                <div
-                  key={day.date.toISOString()}
-                  className={`min-h-[140px] rounded-2xl border p-3 transition ${
-                    day.inCurrentMonth
-                      ? "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
-                      : "border-transparent bg-slate-50 text-slate-400"
-                  } ${isToday ? "ring-2 ring-blue-500" : ""}`}
-                >
-                  <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-                    <span>{day.date.getDate()}</span>
-                    {isToday && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
-                        Today
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {limitedDots.map((dot, index) => (
-                      <span
-                        key={`${dot.value}-${index}`}
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: dot.color }}
-                        title={dot.label}
-                      />
-                    ))}
-                    {day.holidays.length > 0 && (
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: holidayCategory.color }}
-                        title="Holiday"
-                      />
-                    )}
-                    {day.shared.length > 0 && (
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: "#0EA5E9" }}
-                        title="Shared"
-                      />
-                    )}
-                    {categoryDots.length + day.holidays.length + day.shared.length >
-                      limitedDots.length + day.holidays.length + day.shared.length && (
-                      <span className="text-xs text-slate-400">
-                        +{categoryDots.length - limitedDots.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {day.appointments.slice(0, 3).map((event) => {
-                      const category = getCategoryFromEvent(event);
-                      return (
-                        <div
-                          key={event.id}
-                          className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            {category && (
-                              <span
-                                className="inline-block h-2 w-2 rounded-full"
-                                style={{ backgroundColor: category.color }}
-                              />
-                            )}
-                            <span className="font-medium text-slate-700">
-                              {event.title || "Untitled"}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {formatAppointmentTime(event)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {day.appointments.length > 3 && (
-                      <div className="text-xs text-slate-400">
-                        +{day.appointments.length - 3} more…
-                      </div>
-                    )}
-                    {day.holidays.map((holiday) => (
-                      <div
-                        key={holiday.id}
-                        className="rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-xs text-rose-600"
-                      >
-                        Holiday: {holiday.summary}
-                      </div>
-                    ))}
-                    {day.shared.map((shared) => (
-                      <div
-                        key={shared.id}
-                        className="rounded-lg border border-sky-100 bg-sky-50 px-2 py-1 text-xs text-sky-600"
-                      >
-                        Shared: {shared.summary}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
+      <div className="grid gap-4 lg:grid-cols-3">
         {/* Planner & Actions */}
-        <section className="flex flex-col gap-4">
+        <div className="grid gap-4 lg:col-span-3 md:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <NeumorphismClock />
           </div>
@@ -691,47 +531,208 @@ export default function DoctorCalendarPage() {
               })}
             </div>
           </div>
+        </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Active to-dos
-            </h2>
-            {todos.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No tasks yet. Create a new event and mark it as “To-do” to track it here.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm text-slate-700">
-                {todos.map((todo) => (
-                  <li
-                    key={todo.id}
-                    className="flex items-start justify-between rounded-xl border border-orange-100 bg-orange-50 px-3 py-2"
-                  >
-                    <div>
-                      <p className="font-semibold text-orange-600">
-                        {todo.title || "Untitled task"}
-                      </p>
-                      <p className="text-xs text-orange-500">
-                        {formatAppointmentTime(todo)}
-                      </p>
-                    </div>
-                    <span className="text-xs text-orange-400">
-                      {(() => {
-                        const date = getEventDate(todo, "start");
-                        return date
-                          ? new Intl.DateTimeFormat("en", {
-                              month: "short",
-                              day: "numeric",
-                            }).format(date)
-                          : "";
-                      })()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-3">
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">
+            Active to-dos
+          </h2>
+          {todos.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No tasks yet. Create a new event and mark it as “To-do” to track it here.
+            </p>
+          ) : (
+            <ul className="space-y-2 text-sm text-slate-700">
+              {todos.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="flex items-start justify-between rounded-xl border border-orange-100 bg-orange-50 px-3 py-2"
+                >
+                  <div>
+                    <p className="font-semibold text-orange-600">
+                      {todo.title || "Untitled task"}
+                    </p>
+                    <p className="text-xs text-orange-500">
+                      {formatAppointmentTime(todo)}
+                    </p>
+                  </div>
+                  <span className="text-xs text-orange-400">
+                    {(() => {
+                      const date = getEventDate(todo, "start");
+                      return date
+                        ? new Intl.DateTimeFormat("en", {
+                            month: "short",
+                            day: "numeric",
+                          }).format(date)
+                        : "";
+                    })()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Main Calendar Panel */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-3">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setAnchorDate(
+                    new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 1, 1)
+                  )
+                }
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Previous
+              </button>
+              <div className="text-lg font-semibold text-slate-900">
+                {monthLabel(anchorDate)}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setAnchorDate(
+                    new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1)
+                  )
+                }
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <label className="flex items-center gap-2 text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={includeHolidays}
+                  onChange={(e) => setIncludeHolidays(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Show holidays
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {weekdayShort.map((label) => (
+              <div key={label} className="text-center">
+                {label}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-2 grid grid-cols-7 gap-3 text-sm">
+            {matrix.map((day) => {
+              const isToday =
+                day.date.toDateString() === new Date().toDateString();
+              const categoryDots = day.appointments
+                .map((event) => getCategoryFromEvent(event))
+                .filter(Boolean) as CategoryOption[];
+              const limitedDots = categoryDots.slice(0, 4);
+
+              return (
+                <div
+                  key={day.date.toISOString()}
+                  className={`min-h-[140px] rounded-2xl border p-3 transition ${
+                    day.inCurrentMonth
+                      ? "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
+                      : "border-transparent bg-slate-50 text-slate-400"
+                  } ${isToday ? "ring-2 ring-blue-500" : ""}`}
+                >
+                  <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
+                    <span>{day.date.getDate()}</span>
+                    {isToday && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
+                        Today
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {limitedDots.map((dot, index) => (
+                      <span
+                        key={`${dot.value}-${index}`}
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: dot.color }}
+                        title={dot.label}
+                      />
+                    ))}
+                    {day.holidays.length > 0 && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: holidayCategory.color }}
+                        title="Holiday"
+                      />
+                    )}
+                    {day.shared.length > 0 && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: "#0EA5E9" }}
+                        title="Shared"
+                      />
+                    )}
+                    {categoryDots.length + day.holidays.length + day.shared.length >
+                      limitedDots.length + day.holidays.length + day.shared.length && (
+                      <span className="text-xs text-slate-400">
+                        +{categoryDots.length - limitedDots.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    {day.appointments.slice(0, 3).map((event) => {
+                      const category = getCategoryFromEvent(event);
+                      return (
+                        <div
+                          key={event.id}
+                          className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            {category && (
+                              <span
+                                className="inline-block h-2 w-2 rounded-full"
+                                style={{ backgroundColor: category.color }}
+                              />
+                            )}
+                            <span className="font-medium text-slate-700">
+                              {event.title || "Untitled"}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {formatAppointmentTime(event)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {day.appointments.length > 3 && (
+                      <div className="text-xs text-slate-400">
+                        +{day.appointments.length - 3} more…
+                      </div>
+                    )}
+                    {day.holidays.map((holiday) => (
+                      <div
+                        key={holiday.id}
+                        className="rounded-lg border border-rose-100 bg-rose-50 px-2 py-1 text-xs text-rose-600"
+                      >
+                        Holiday: {holiday.summary}
+                      </div>
+                    ))}
+                    {day.shared.map((shared) => (
+                      <div
+                        key={shared.id}
+                        className="rounded-lg border border-sky-100 bg-sky-50 px-2 py-1 text-xs text-sky-600"
+                      >
+                        Shared: {shared.summary}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
+
       </div>
 
       {loading && (
