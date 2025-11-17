@@ -394,6 +394,18 @@ export interface DoctorListItem {
   accepting_new_patients: boolean;
   offers_virtual_visits: boolean;
   cover_photo_url?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  place_id?: string | null;
+  google_rating?: number | null;
+  google_user_ratings_total?: number | null;
+  distance_km?: number | null;
 }
 
 export interface DoctorSocialLink {
@@ -483,7 +495,12 @@ export interface CreateAppointmentRequest {
 export const doctorAPI = {
   // List doctors for discovery
   listDoctors: async (
-    params?: { search?: string; specialty?: string }
+    params?: {
+      search?: string;
+      specialty?: string;
+      patient_latitude?: number;
+      patient_longitude?: number;
+    }
   ): Promise<DoctorListItem[]> => {
     const query = new URLSearchParams();
     if (params?.search) {
@@ -491,6 +508,12 @@ export const doctorAPI = {
     }
     if (params?.specialty && params.specialty !== "All Specialties") {
       query.append("specialty", params.specialty);
+    }
+    if (params?.patient_latitude !== undefined) {
+      query.append("patient_latitude", params.patient_latitude.toString());
+    }
+    if (params?.patient_longitude !== undefined) {
+      query.append("patient_longitude", params.patient_longitude.toString());
     }
 
     const path = query.toString() ? `/doctors?${query.toString()}` : "/doctors";

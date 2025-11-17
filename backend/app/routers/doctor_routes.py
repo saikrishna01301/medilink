@@ -81,13 +81,48 @@ async def get_authenticated_user(
 async def list_doctors(
     search: Optional[str] = Query(None, description="Search by name, email, or specialty"),
     specialty: Optional[str] = Query(None, description="Filter by specialty"),
+    patient_latitude: Optional[float] = Query(None, description="Patient latitude for distance calculation"),
+    patient_longitude: Optional[float] = Query(None, description="Patient longitude for distance calculation"),
     session: AsyncSession = Depends(get_session),
     _: Any = Depends(get_authenticated_user),
 ):
-    """List all doctors with profile information."""
-    doctors = await doctor_crud.list_doctors_with_profiles(
-        session, search=search, specialty=specialty
+    """List all doctors with profile information, including address, distance, and ratings."""
+    from services.google_places import (
+        fetch_place_details_by_address,
+        fetch_place_details_by_place_id,
     )
+    
+    doctors = await doctor_crud.list_doctors_with_profiles(
+        session,
+        search=search,
+        specialty=specialty,
+        patient_latitude=patient_latitude,
+        patient_longitude=patient_longitude,
+    )
+    
+    # Fetch Google ratings for doctors with place_id
+    for doctor in doctors:
+        if doctor.get("place_id") and not doctor.get("google_rating"):
+            place_data = await fetch_place_details_by_place_id(doctor["place_id"])
+            if place_data:
+                doctor["google_rating"] = place_data.get("rating")
+                doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
+        elif doctor.get("latitude") and doctor.get("longitude") and not doctor.get("google_rating"):
+            # Try to find place by address if no place_id
+            address_parts = [
+                doctor.get("address_line1"),
+                doctor.get("city"),
+                doctor.get("state"),
+                doctor.get("postal_code"),
+            ]
+            address_str = ", ".join([p for p in address_parts if p])
+            if address_str:
+                place_data = await fetch_place_details_by_address(address_str)
+                if place_data:
+                    doctor["google_rating"] = place_data.get("rating")
+                    doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
+                    doctor["place_id"] = place_data.get("place_id")
+    
     return doctors
 
 

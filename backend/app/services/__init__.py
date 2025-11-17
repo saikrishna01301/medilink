@@ -5,6 +5,7 @@ from .google_calendar import (
     fetch_service_calendar_events,
     fetch_holiday_events,
 )
+from . import google_places
 
 __all__ = [
     hash_password,
@@ -16,4 +17,5 @@ __all__ = [
     StorageService,
     fetch_service_calendar_events,
     fetch_holiday_events,
+    google_places,
 ]

@@ -1,9 +1,10 @@
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from db import DoctorProfile, DoctorSocialLink, User
+from db import DoctorProfile, DoctorSocialLink, User, Address
 from db.models.user_model import UserRoleEnum
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
+import math
 
 
 async def get_doctor_profile(user_id: int, session: AsyncSession) -> Optional[DoctorProfile]:
@@ -151,18 +152,38 @@ async def update_user_info(
     return user
 
 
+def _haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two points in kilometers using Haversine formula."""
+    R = 6371  # Earth radius in kilometers
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
+
+
 async def list_doctors_with_profiles(
     session: AsyncSession,
     *,
     search: Optional[str] = None,
     specialty: Optional[str] = None,
+    patient_latitude: Optional[float] = None,
+    patient_longitude: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
-    """Return all doctors with their profile information."""
+    """Return all doctors with their profile information, including address and distance."""
     stmt = (
-        select(User, DoctorProfile)
+        select(User, DoctorProfile, Address)
         .join(DoctorProfile, DoctorProfile.user_id == User.id, isouter=True)
+        .outerjoin(
+            Address,
+            (Address.user_id == User.id) & (Address.is_primary.is_(True)),
+        )
         .where(User.role == UserRoleEnum.doctor)
-        .order_by(func.lower(User.last_name), func.lower(User.first_name))
     )
 
     if specialty:
@@ -187,28 +208,74 @@ async def list_doctors_with_profiles(
             )
         )
 
+    # Default ordering by name
+    if patient_latitude and patient_longitude:
+        # If patient location provided, we'll sort by distance after calculation
+        stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
+    else:
+        stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
+
     result = await session.execute(stmt)
 
     doctors: List[Dict[str, Any]] = []
-    for user, profile in result.all():
-        doctors.append(
-            {
-                "id": user.id,
-                "first_name": user.first_name,
-                "middle_name": user.middle_name,
-                "last_name": user.last_name,
-                "email": user.email,
-                "phone": user.phone,
-                "specialty": profile.specialty if profile else None,
-                "bio": profile.bio if profile else None,
-                "photo_url": profile.photo_url if profile else None,
-                "years_of_experience": profile.years_of_experience if profile else None,
-                "languages_spoken": profile.languages_spoken if profile else [],
-                "board_certifications": profile.board_certifications if profile else [],
-                "accepting_new_patients": profile.accepting_new_patients if profile else False,
-                "offers_virtual_visits": profile.offers_virtual_visits if profile else False,
-                "cover_photo_url": profile.cover_photo_url if profile else None,
-            }
+    for user, profile, address in result.all():
+        doctor_data = {
+            "id": user.id,
+            "first_name": user.first_name,
+            "middle_name": user.middle_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "phone": user.phone,
+            "specialty": profile.specialty if profile else None,
+            "bio": profile.bio if profile else None,
+            "photo_url": profile.photo_url if profile else None,
+            "years_of_experience": profile.years_of_experience if profile else None,
+            "languages_spoken": profile.languages_spoken if profile else [],
+            "board_certifications": profile.board_certifications if profile else [],
+            "accepting_new_patients": profile.accepting_new_patients if profile else False,
+            "offers_virtual_visits": profile.offers_virtual_visits if profile else False,
+            "cover_photo_url": profile.cover_photo_url if profile else None,
+            "address_line1": address.address_line1 if address else None,
+            "address_line2": address.address_line2 if address else None,
+            "city": address.city if address else None,
+            "state": address.state if address else None,
+            "postal_code": address.postal_code if address else None,
+            "country_code": address.country_code if address else None,
+            "latitude": float(address.latitude) if address and address.latitude else None,
+            "longitude": float(address.longitude) if address and address.longitude else None,
+            "place_id": address.place_id if address else None,
+            "google_rating": None,
+            "google_user_ratings_total": None,
+            "distance_km": None,
+        }
+
+        # Calculate distance if patient location and doctor location are available
+        if (
+            patient_latitude
+            and patient_longitude
+            and doctor_data["latitude"]
+            and doctor_data["longitude"]
+        ):
+            doctor_data["distance_km"] = round(
+                _haversine_distance_km(
+                    patient_latitude,
+                    patient_longitude,
+                    doctor_data["latitude"],
+                    doctor_data["longitude"],
+                ),
+                2,
+            )
+
+        doctors.append(doctor_data)
+
+    # Sort by distance if patient location was provided
+    if patient_latitude and patient_longitude:
+        doctors.sort(
+            key=lambda d: (
+                d["distance_km"] if d["distance_km"] is not None else float("inf"),
+                d["last_name"] or "",
+                d["first_name"] or "",
+            )
         )
 
     return doctors

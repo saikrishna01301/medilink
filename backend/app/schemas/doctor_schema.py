@@ -113,6 +113,21 @@ class DoctorListItem(BaseModel):
     years_of_experience: Optional[int] = None
     languages_spoken: List[str] = Field(default_factory=list)
     board_certifications: List[str] = Field(default_factory=list)
+    accepting_new_patients: bool = Field(default=False)
+    offers_virtual_visits: bool = Field(default=False)
+    cover_photo_url: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    place_id: Optional[str] = None
+    google_rating: Optional[float] = None
+    google_user_ratings_total: Optional[int] = None
+    distance_km: Optional[float] = None
 
     class Config:
         from_attributes = True
