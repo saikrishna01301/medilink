@@ -1,6 +1,17 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import NullPool
 from db import Base
+from db.models import (
+    User,
+    DBSession,
+    OTPStore,
+    DoctorProfile,
+    DoctorSocialLink,
+    Specialty,
+    DoctorSpecialty,
+    Appointment,
+    Address,
+)
 from core import config
 import asyncpg
 import asyncio

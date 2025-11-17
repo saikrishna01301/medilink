@@ -12,9 +12,13 @@ import {
   DoctorSocialLinkUpdatePayload,
   authAPI,
   Address,
+  Specialty,
+  DoctorSpecialty,
 } from "@/services/api";
+import ClinicsManagement from "@/components/ClinicsManagement";
 import { APIError } from "@/services/api";
 import { formatSpecialty } from "@/utils/formatSpecialty";
+import { MEDICAL_SPECIALTIES } from "@/utils/medicalSpecialties";
 
 const SOCIAL_PLATFORM_OPTIONS = [
   { value: "linkedin", label: "LinkedIn" },
@@ -65,9 +69,16 @@ export default function SettingsPage() {
     offers_virtual_visits: false,
   });
 
-  const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([]);
   const [newCertification, setNewCertification] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
+  
+  const [availableSpecialties, setAvailableSpecialties] = useState<Specialty[]>([]);
+  const [doctorSpecialties, setDoctorSpecialties] = useState<DoctorSpecialty[]>([]);
+  const [selectedSpecialtyIds, setSelectedSpecialtyIds] = useState<number[]>([]);
+  const [primarySpecialtyId, setPrimarySpecialtyId] = useState<number | null>(null);
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
+  const [specialtySearchQuery, setSpecialtySearchQuery] = useState("");
+  const [showSpecialtyDropdown, setShowSpecialtyDropdown] = useState(false);
   
   // Profile picture upload state
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -146,26 +157,39 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchSpecialties = async () => {
+    const loadSpecialties = async () => {
       try {
-        const specialties = await doctorAPI.listSpecialties();
-        if (!isMounted) return;
-        setSpecialtyOptions(
-          specialties
-            .map((value) => value?.trim())
-            .filter((value): value is string => Boolean(value))
-        );
-      } catch {
-        // Ignore, suggestions are optional
+        setLoadingSpecialties(true);
+        const [available, mySpecialties] = await Promise.all([
+          doctorAPI.listSpecialties().catch(() => []),
+          doctorAPI.getMySpecialties().catch(() => []),
+        ]);
+        setAvailableSpecialties(available);
+        setDoctorSpecialties(mySpecialties);
+        setSelectedSpecialtyIds(mySpecialties.map(ds => ds.specialty_id));
+        const primary = mySpecialties.find(ds => ds.is_primary);
+        setPrimarySpecialtyId(primary ? primary.specialty_id : (mySpecialties[0]?.specialty_id || null));
+      } catch (err) {
+        console.error("Failed to load specialties:", err);
+        setAvailableSpecialties([]);
+        setDoctorSpecialties([]);
+      } finally {
+        setLoadingSpecialties(false);
       }
     };
+    loadSpecialties();
+  }, []);
 
-    fetchSpecialties();
-
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.specialty-dropdown-container')) {
+        setShowSpecialtyDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      isMounted = false;
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -206,13 +230,11 @@ export default function SettingsPage() {
     };
     setProfileInfo(updatedProfileInfo);
 
-    if (profile?.specialty) {
-      setSpecialtyOptions((prev) => {
-        if (prev.includes(profile.specialty)) {
-          return prev;
-        }
-        return [...prev, profile.specialty];
-      });
+    if (profile?.specialties) {
+      setDoctorSpecialties(profile.specialties);
+      setSelectedSpecialtyIds(profile.specialties.map(ds => ds.specialty_id));
+      const primary = profile.specialties.find(ds => ds.is_primary);
+      setPrimarySpecialtyId(primary ? primary.specialty_id : (profile.specialties[0]?.specialty_id || null));
     }
 
     setLastUploadedPhotoUrl(profile?.photo_url || null);
@@ -290,8 +312,19 @@ export default function SettingsPage() {
       offers_virtual_visits: profileInfo.offers_virtual_visits,
       };
 
-      const updated = await doctorAPI.updateProfile(updateData);
+      const [updated] = await Promise.all([
+        doctorAPI.updateProfile(updateData),
+        selectedSpecialtyIds.length > 0
+          ? doctorAPI.updateSpecialties(selectedSpecialtyIds, primarySpecialtyId || undefined)
+          : Promise.resolve([]),
+      ]);
+      
       syncProfileState(updated);
+      
+      if (selectedSpecialtyIds.length > 0) {
+        const mySpecialties = await doctorAPI.getMySpecialties();
+        setDoctorSpecialties(mySpecialties);
+      }
       
       // Update profile info state
       if (updated.profile) {
@@ -316,6 +349,44 @@ export default function SettingsPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const filteredSpecialties = useMemo(() => {
+    if (!specialtySearchQuery.trim()) {
+      return availableSpecialties.filter(s => !selectedSpecialtyIds.includes(s.id));
+    }
+    const query = specialtySearchQuery.toLowerCase();
+    return availableSpecialties.filter(s => 
+      !selectedSpecialtyIds.includes(s.id) &&
+      (s.label.toLowerCase().includes(query) ||
+       s.value.toLowerCase().includes(query) ||
+       s.description?.toLowerCase().includes(query))
+    );
+  }, [availableSpecialties, selectedSpecialtyIds, specialtySearchQuery]);
+
+  const handleAddSpecialty = (specialtyId: number) => {
+    if (!selectedSpecialtyIds.includes(specialtyId)) {
+      setSelectedSpecialtyIds([...selectedSpecialtyIds, specialtyId]);
+      if (!primarySpecialtyId) {
+        setPrimarySpecialtyId(specialtyId);
+      }
+      setSpecialtySearchQuery("");
+      setShowSpecialtyDropdown(false);
+    }
+  };
+
+  const handleRemoveSpecialty = (specialtyId: number) => {
+    setSelectedSpecialtyIds(selectedSpecialtyIds.filter(id => id !== specialtyId));
+    if (primarySpecialtyId === specialtyId) {
+      const remaining = selectedSpecialtyIds.filter(id => id !== specialtyId);
+      setPrimarySpecialtyId(remaining.length > 0 ? remaining[0] : null);
+    }
+  };
+
+  const handleSetPrimary = (specialtyId: number) => {
+    if (selectedSpecialtyIds.includes(specialtyId)) {
+      setPrimarySpecialtyId(specialtyId);
     }
   };
 
@@ -813,22 +884,6 @@ export default function SettingsPage() {
 
   const hasCoverPhoto = Boolean(coverDisplayUrl);
 
-  const specialtyChoices = useMemo(() => {
-    const unique = new Set(
-      specialtyOptions
-        .map((value) => value?.trim())
-        .filter((value): value is string => Boolean(value))
-    );
-
-    const current = profileInfo.specialty.trim();
-    if (current.length > 0) {
-      unique.add(current);
-    }
-
-    return Array.from(unique).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" })
-    );
-  }, [specialtyOptions, profileInfo.specialty]);
 
   if (loading) {
     return (
@@ -1483,124 +1538,7 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* Address Section */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Primary Address</h2>
-          </div>
-
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address Line 1 *
-                </label>
-                <input
-                  type="text"
-                  value={address.address_line1}
-                  onChange={(e) =>
-                    setAddress({ ...address, address_line1: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Street address line 1"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address Line 2
-                </label>
-                <input
-                  type="text"
-                  value={address.address_line2}
-                  onChange={(e) =>
-                    setAddress({ ...address, address_line2: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Apartment, suite, etc. (optional)"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City *
-                </label>
-                <input
-                  type="text"
-                  value={address.city}
-                  onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="City"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  State / Region
-                </label>
-                <input
-                  type="text"
-                  value={address.state}
-                  onChange={(e) => setAddress({ ...address, state: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="State or region"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Postal / ZIP Code
-                </label>
-                <input
-                  type="text"
-                  value={address.postal_code}
-                  onChange={(e) =>
-                    setAddress({ ...address, postal_code: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Postal or ZIP code"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Country Code
-                </label>
-                <input
-                  type="text"
-                  value={address.country_code}
-                  maxLength={2}
-                  onChange={(e) =>
-                    setAddress({
-                      ...address,
-                      country_code: e.target.value.toUpperCase(),
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="e.g. US"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Label
-                </label>
-                <input
-                  type="text"
-                  value={address.label}
-                  onChange={(e) =>
-                    setAddress({ ...address, label: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Primary Clinic, Home, etc."
-                />
-              </div>
-              <button
-                onClick={handleSaveAddress}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-              >
-                {saving ? "Saving Address..." : "Save Address"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ClinicsManagement onUpdate={loadProfileData} />
 
         {/* Professional Profile Section */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -1619,28 +1557,136 @@ export default function SettingsPage() {
           {editingSection === "profile" ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Specialty *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Specialties *
                 </label>
-                <input
-                  list="doctor-specialties"
-                  value={profileInfo.specialty}
-                  onChange={(e) =>
-                    setProfileInfo({ ...profileInfo, specialty: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Select or type your specialty"
-                  required
-                />
-                <datalist id="doctor-specialties">
-                  {specialtyChoices.map((specialty) => (
-                    <option
-                      key={specialty}
-                      value={specialty}
-                      label={formatSpecialty(specialty)}
-                    />
-                  ))}
-                </datalist>
+                {loadingSpecialties ? (
+                  <p className="text-sm text-gray-500">Loading specialties...</p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {selectedSpecialtyIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {selectedSpecialtyIds.map((id) => {
+                            const specialty = availableSpecialties.find(s => s.id === id);
+                            if (!specialty) return null;
+                            const isPrimary = primarySpecialtyId === id;
+                            return (
+                              <div
+                                key={id}
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
+                                  isPrimary
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-200 text-gray-700"
+                                }`}
+                              >
+                                <span>
+                                  {specialty.label}
+                                  {isPrimary && (
+                                    <span className="ml-1 text-xs">(Primary)</span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  {!isPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetPrimary(id)}
+                                      className="text-xs px-1.5 py-0.5 rounded bg-white/20 hover:bg-white/30 transition"
+                                      title="Set as primary"
+                                    >
+                                      Set Primary
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSpecialty(id)}
+                                    className="ml-1 hover:opacity-75 transition"
+                                    title="Remove specialty"
+                                  >
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                      />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="relative specialty-dropdown-container">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={specialtySearchQuery}
+                              onChange={(e) => {
+                                setSpecialtySearchQuery(e.target.value);
+                                setShowSpecialtyDropdown(true);
+                              }}
+                              onFocus={() => setShowSpecialtyDropdown(true)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setShowSpecialtyDropdown(false);
+                                } else if (e.key === 'Enter' && filteredSpecialties.length > 0) {
+                                  e.preventDefault();
+                                  handleAddSpecialty(filteredSpecialties[0].id);
+                                }
+                              }}
+                              placeholder="Search and add specialties..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                            />
+                            {showSpecialtyDropdown && filteredSpecialties.length > 0 && (
+                              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                {filteredSpecialties.map((specialty) => (
+                                  <button
+                                    key={specialty.id}
+                                    type="button"
+                                    onClick={() => handleAddSpecialty(specialty.id)}
+                                    className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="font-medium text-gray-900">
+                                      {specialty.label}
+                                    </div>
+                                    {specialty.description && (
+                                      <div className="text-xs text-gray-500 mt-0.5">
+                                        {specialty.description}
+                                      </div>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {specialtySearchQuery && filteredSpecialties.length === 0 && availableSpecialties.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            No specialties found matching "{specialtySearchQuery}"
+                          </p>
+                        )}
+                        {availableSpecialties.length === 0 && !loadingSpecialties && (
+                          <p className="text-xs text-yellow-600 mt-1">
+                            Unable to load specialties. Please try refreshing the page.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {selectedSpecialtyIds.length === 0 && (
+                      <p className="text-xs text-red-500 mt-2">
+                        Please add at least one specialty
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               <div>
@@ -1824,15 +1870,20 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  disabled={saving || selectedSpecialtyIds.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setEditingSection(null);
-                    loadProfileData(); // Reset form
+                    await loadProfileData();
+                    const mySpecialties = await doctorAPI.getMySpecialties();
+                    setDoctorSpecialties(mySpecialties);
+                    setSelectedSpecialtyIds(mySpecialties.map(ds => ds.specialty_id));
+                    const primary = mySpecialties.find(ds => ds.is_primary);
+                    setPrimarySpecialtyId(primary ? primary.specialty_id : (mySpecialties[0]?.specialty_id || null));
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
                 >
@@ -1843,10 +1894,32 @@ export default function SettingsPage() {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
-                <p className="text-gray-900 text-base py-2">
-                  {formatSpecialty(profileData?.profile?.specialty) || "—"}
-                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Specialties</label>
+                {doctorSpecialties.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {doctorSpecialties.map((ds) => (
+                      <span
+                        key={ds.id}
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                          ds.is_primary
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-200 text-gray-700"
+                        }`}
+                      >
+                        {ds.specialty.label}
+                        {ds.is_primary && (
+                          <span className="text-xs">(Primary)</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ) : profileData?.profile?.specialty ? (
+                  <p className="text-gray-900 text-base py-2">
+                    {formatSpecialty(profileData.profile.specialty)}
+                  </p>
+                ) : (
+                  <p className="text-gray-500 text-base py-2">—</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>

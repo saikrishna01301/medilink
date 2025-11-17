@@ -15,6 +15,51 @@ from datetime import datetime
 from db.base import Base
 
 
+class Specialty(Base):
+    """
+    Reference table for medical specialties with NUCC codes.
+    """
+    __tablename__ = "specialties"
+
+    id: Mapped[int] = mapped_column("specialty_id", primary_key=True, index=True)
+    nucc_code: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    value: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    doctor_specialties: Mapped[List["DoctorSpecialty"]] = relationship(
+        back_populates="specialty",
+        cascade="all, delete-orphan"
+    )
+
+
+class DoctorSpecialty(Base):
+    """
+    Junction table linking doctors to their specialties.
+    Supports multiple specialties per doctor with a primary specialty flag.
+    """
+    __tablename__ = "doctor_specialties"
+
+    id: Mapped[int] = mapped_column("doctor_specialty_id", primary_key=True, index=True)
+    doctor_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    specialty_id: Mapped[int] = mapped_column(
+        ForeignKey("specialties.specialty_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    specialty: Mapped["Specialty"] = relationship(back_populates="doctor_specialties")
+
+
 class DoctorProfile(Base):
     """
     Doctor profile information linked to users table.

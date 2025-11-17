@@ -1,8 +1,17 @@
+import { formatSpecialtyLabel } from "./medicalSpecialties";
+
 export const formatSpecialty = (specialty: string | null | undefined): string => {
   if (!specialty) {
     return "";
   }
 
+  // Try to use the medical specialties data first
+  const formatted = formatSpecialtyLabel(specialty);
+  if (formatted) {
+    return formatted;
+  }
+
+  // Fallback to the old formatting logic
   return specialty
     .replace(/[_-]+/g, " ")
     .split(" ")

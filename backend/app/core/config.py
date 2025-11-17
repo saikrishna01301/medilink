@@ -47,7 +47,7 @@ class config(BaseSettings):
         "GOOGLE_HOLIDAYS_CALENDAR_ID",
         "en.usa#holiday@group.v.calendar.google.com",
     )
-    
+
     # Google Maps API Configuration
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 

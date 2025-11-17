@@ -1,6 +1,6 @@
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from db import DoctorProfile, DoctorSocialLink, User, Address
+from db import DoctorProfile, DoctorSocialLink, User, Address, DoctorSpecialty, Specialty
 from db.models.user_model import UserRoleEnum
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
@@ -48,7 +48,31 @@ async def get_doctor_profile_with_clinics(user_id: int, session: AsyncSession) -
     profile = await get_doctor_profile(user_id, session)
     social_links: List[Dict[str, Any]] = []
 
+    specialties_data: List[Dict[str, Any]] = []
     if profile:
+        specialties_result = await session.execute(
+            select(DoctorSpecialty, Specialty)
+            .join(Specialty, DoctorSpecialty.specialty_id == Specialty.id)
+            .where(DoctorSpecialty.doctor_user_id == user_id)
+            .order_by(DoctorSpecialty.is_primary.desc(), DoctorSpecialty.created_at)
+        )
+        specialties_data = [
+            {
+                "id": ds.id,
+                "doctor_user_id": ds.doctor_user_id,
+                "specialty_id": ds.specialty_id,
+                "is_primary": ds.is_primary,
+                "specialty": {
+                    "id": s.id,
+                    "nucc_code": s.nucc_code,
+                    "value": s.value,
+                    "label": s.label,
+                    "description": s.description,
+                }
+            }
+            for ds, s in specialties_result.all()
+        ]
+        
         links_result = await session.execute(
             select(DoctorSocialLink)
             .where(DoctorSocialLink.doctor_profile_id == profile.id)
@@ -94,6 +118,7 @@ async def get_doctor_profile_with_clinics(user_id: int, session: AsyncSession) -
             "offers_virtual_visits": profile.offers_virtual_visits,
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
+            "specialties": specialties_data,
         } if profile else None,
         "clinics": [],  # Empty list for compatibility
         "social_links": social_links,
@@ -175,100 +200,187 @@ async def list_doctors_with_profiles(
     patient_latitude: Optional[float] = None,
     patient_longitude: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
-    """Return all doctors with their profile information, including address and distance."""
+    """Return all doctors with their profile information, including all clinic addresses and distances.
+    Only returns doctors who are accepting new patients."""
+    # Use INNER JOIN since we require that doctors have profiles and are accepting new patients
     stmt = (
-        select(User, DoctorProfile, Address)
-        .join(DoctorProfile, DoctorProfile.user_id == User.id, isouter=True)
-        .outerjoin(
-            Address,
-            (Address.user_id == User.id) & (Address.is_primary.is_(True)),
-        )
+        select(User, DoctorProfile)
+        .join(DoctorProfile, DoctorProfile.user_id == User.id)
         .where(User.role == UserRoleEnum.doctor)
+        .where(DoctorProfile.accepting_new_patients == True)
     )
 
     if specialty:
+        specialty_subquery = select(DoctorSpecialty.doctor_user_id).join(
+            Specialty, DoctorSpecialty.specialty_id == Specialty.id
+        ).where(
+            or_(
+                func.lower(Specialty.value) == func.lower(specialty),
+                func.lower(Specialty.label) == func.lower(specialty)
+            )
+        )
         stmt = stmt.where(
-            func.lower(DoctorProfile.specialty) == func.lower(specialty)
+            or_(
+                User.id.in_(specialty_subquery),
+                func.lower(DoctorProfile.specialty) == func.lower(specialty)
+            )
         )
 
     if search:
         search_pattern = f"%{search.lower()}%"
+        # Build full name including middle name for better search coverage
         full_name = func.concat(
+            func.coalesce(func.lower(User.first_name), ""),
+            " ",
+            func.coalesce(func.lower(User.middle_name), ""),
+            " ",
+            func.coalesce(func.lower(User.last_name), "")
+        )
+        # Also create first+last name for cases where middle name might not be used
+        first_last_name = func.concat(
             func.coalesce(func.lower(User.first_name), ""),
             " ",
             func.coalesce(func.lower(User.last_name), "")
         )
+        
+        specialty_search_subquery = select(DoctorSpecialty.doctor_user_id).join(
+            Specialty, DoctorSpecialty.specialty_id == Specialty.id
+        ).where(
+            or_(
+                func.lower(Specialty.label).like(search_pattern),
+                func.lower(Specialty.value).like(search_pattern),
+                func.lower(Specialty.description).like(search_pattern)
+            )
+        )
+        
         stmt = stmt.where(
             or_(
                 func.lower(User.first_name).like(search_pattern),
+                func.lower(User.middle_name).like(search_pattern),
                 func.lower(User.last_name).like(search_pattern),
                 full_name.like(search_pattern),
+                first_last_name.like(search_pattern),
                 func.lower(User.email).like(search_pattern),
-                func.lower(func.coalesce(DoctorProfile.specialty, "")).like(search_pattern),
+                func.lower(DoctorProfile.specialty).like(search_pattern),
+                User.id.in_(specialty_search_subquery)
             )
         )
 
-    # Default ordering by name
-    if patient_latitude and patient_longitude:
-        # If patient location provided, we'll sort by distance after calculation
-        stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
-    else:
-        stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
-
+    stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
     result = await session.execute(stmt)
 
-    doctors: List[Dict[str, Any]] = []
-    for user, profile, address in result.all():
-        doctor_data = {
-            "id": user.id,
-            "first_name": user.first_name,
-            "middle_name": user.middle_name,
-            "last_name": user.last_name,
-            "email": user.email,
-            "phone": user.phone,
-            "specialty": profile.specialty if profile else None,
-            "bio": profile.bio if profile else None,
-            "photo_url": profile.photo_url if profile else None,
-            "years_of_experience": profile.years_of_experience if profile else None,
-            "languages_spoken": profile.languages_spoken if profile else [],
-            "board_certifications": profile.board_certifications if profile else [],
-            "accepting_new_patients": profile.accepting_new_patients if profile else False,
-            "offers_virtual_visits": profile.offers_virtual_visits if profile else False,
-            "cover_photo_url": profile.cover_photo_url if profile else None,
-            "address_line1": address.address_line1 if address else None,
-            "address_line2": address.address_line2 if address else None,
-            "city": address.city if address else None,
-            "state": address.state if address else None,
-            "postal_code": address.postal_code if address else None,
-            "country_code": address.country_code if address else None,
-            "latitude": float(address.latitude) if address and address.latitude else None,
-            "longitude": float(address.longitude) if address and address.longitude else None,
-            "place_id": address.place_id if address else None,
-            "google_rating": None,
-            "google_user_ratings_total": None,
-            "distance_km": None,
-        }
+    doctors_dict: Dict[int, Dict[str, Any]] = {}
+    
+    for user, profile in result.all():
+        if user.id not in doctors_dict:
+            doctors_dict[user.id] = {
+                "id": user.id,
+                "first_name": user.first_name,
+                "middle_name": user.middle_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "phone": user.phone,
+                "specialty": profile.specialty if profile else None,
+                "specialties": [],
+                "bio": profile.bio if profile else None,
+                "photo_url": profile.photo_url if profile else None,
+                "years_of_experience": profile.years_of_experience if profile else None,
+                "languages_spoken": profile.languages_spoken if profile else [],
+                "board_certifications": profile.board_certifications if profile else [],
+                "accepting_new_patients": profile.accepting_new_patients if profile else False,
+                "offers_virtual_visits": profile.offers_virtual_visits if profile else False,
+                "cover_photo_url": profile.cover_photo_url if profile else None,
+                "clinics": [],
+                "google_rating": None,
+                "google_user_ratings_total": None,
+                "distance_km": None,
+            }
+    
+    if doctors_dict:
+        addresses_stmt = select(Address).where(
+            Address.user_id.in_(list(doctors_dict.keys()))
+        ).order_by(Address.is_primary.desc(), Address.id.asc())
+        addresses_result = await session.execute(addresses_stmt)
+        addresses = addresses_result.scalars().all()
+        
+        for address in addresses:
+            if address.user_id in doctors_dict:
+                clinic_data = {
+                    "address_id": address.id,
+                    "label": address.label,
+                    "address_line1": address.address_line1,
+                    "address_line2": address.address_line2,
+                    "city": address.city,
+                    "state": address.state,
+                    "postal_code": address.postal_code,
+                    "country_code": address.country_code,
+                    "latitude": float(address.latitude) if address.latitude else None,
+                    "longitude": float(address.longitude) if address.longitude else None,
+                    "place_id": address.place_id,
+                    "is_primary": address.is_primary,
+                    "distance_km": None,
+                }
+                
+                if (
+                    patient_latitude
+                    and patient_longitude
+                    and clinic_data["latitude"]
+                    and clinic_data["longitude"]
+                ):
+                    clinic_data["distance_km"] = round(
+                        _haversine_distance_km(
+                            patient_latitude,
+                            patient_longitude,
+                            clinic_data["latitude"],
+                            clinic_data["longitude"],
+                        ),
+                        2,
+                    )
+                
+                doctors_dict[address.user_id]["clinics"].append(clinic_data)
+        
+        doctor_ids = list(doctors_dict.keys())
+        specialties_stmt = select(DoctorSpecialty, Specialty).join(
+            Specialty, DoctorSpecialty.specialty_id == Specialty.id
+        ).where(DoctorSpecialty.doctor_user_id.in_(doctor_ids)).order_by(
+            DoctorSpecialty.is_primary.desc(), DoctorSpecialty.created_at
+        )
+        specialties_result = await session.execute(specialties_stmt)
+        
+        for ds, s in specialties_result.all():
+            if ds.doctor_user_id in doctors_dict:
+                doctors_dict[ds.doctor_user_id]["specialties"].append(s.label)
+        
+        for doctor_id, doctor_data in doctors_dict.items():
+            if doctor_data["clinics"]:
+                primary_clinic = next(
+                    (c for c in doctor_data["clinics"] if c["is_primary"]),
+                    doctor_data["clinics"][0]
+                )
+                doctor_data["address_line1"] = primary_clinic["address_line1"]
+                doctor_data["address_line2"] = primary_clinic["address_line2"]
+                doctor_data["city"] = primary_clinic["city"]
+                doctor_data["state"] = primary_clinic["state"]
+                doctor_data["postal_code"] = primary_clinic["postal_code"]
+                doctor_data["country_code"] = primary_clinic["country_code"]
+                doctor_data["latitude"] = primary_clinic["latitude"]
+                doctor_data["longitude"] = primary_clinic["longitude"]
+                doctor_data["place_id"] = primary_clinic["place_id"]
+                doctor_data["distance_km"] = primary_clinic["distance_km"]
+            else:
+                doctor_data["address_line1"] = None
+                doctor_data["address_line2"] = None
+                doctor_data["city"] = None
+                doctor_data["state"] = None
+                doctor_data["postal_code"] = None
+                doctor_data["country_code"] = None
+                doctor_data["latitude"] = None
+                doctor_data["longitude"] = None
+                doctor_data["place_id"] = None
+                doctor_data["distance_km"] = None
 
-        # Calculate distance if patient location and doctor location are available
-        if (
-            patient_latitude
-            and patient_longitude
-            and doctor_data["latitude"]
-            and doctor_data["longitude"]
-        ):
-            doctor_data["distance_km"] = round(
-                _haversine_distance_km(
-                    patient_latitude,
-                    patient_longitude,
-                    doctor_data["latitude"],
-                    doctor_data["longitude"],
-                ),
-                2,
-            )
+    doctors = list(doctors_dict.values())
 
-        doctors.append(doctor_data)
-
-    # Sort by distance if patient location was provided
     if patient_latitude and patient_longitude:
         doctors.sort(
             key=lambda d: (

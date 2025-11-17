@@ -6,9 +6,12 @@ from .doctor_schema import (
     DoctorProfileRead,
     DoctorProfileWithUser,
     DoctorListItem,
+    ClinicLocation,
     DoctorSocialLinkCreate,
     DoctorSocialLinkUpdate,
     DoctorSocialLinkRead,
+    SpecialtyRead,
+    DoctorSpecialtyRead,
 )
 from .appointment_schema import AppointmentCreate, AppointmentRead
 from .address_schema import AddressUpdate, AddressRead
@@ -23,9 +26,12 @@ __all__ = [
     DoctorProfileRead,
     DoctorProfileWithUser,
     DoctorListItem,
+    ClinicLocation,
     DoctorSocialLinkCreate,
     DoctorSocialLinkUpdate,
     DoctorSocialLinkRead,
+    SpecialtyRead,
+    DoctorSpecialtyRead,
     AppointmentCreate,
     AppointmentRead,
     AddressUpdate,

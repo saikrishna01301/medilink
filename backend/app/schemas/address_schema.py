@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -30,7 +30,7 @@ class AddressUpdate(AddressBase):
 
 
 class AddressRead(AddressBase):
-    address_id: int = Field(..., alias="id")
+    address_id: int = Field(..., validation_alias="id", serialization_alias="address_id")
     user_id: int
     formatted_address: Optional[str] = None
     latitude: Optional[float] = None
@@ -38,7 +38,7 @@ class AddressRead(AddressBase):
     place_id: Optional[str] = None
     location_source: Optional[str] = None
     timezone: Optional[str] = None
-    raw_geocoding_payload: Optional[str] = None
+    raw_geocoding_payload: Optional[Dict[str, Any]] = Field(default=None, exclude_if_none=False)
     is_primary: bool
     created_at: datetime
     updated_at: datetime
@@ -46,5 +46,6 @@ class AddressRead(AddressBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+        allow_population_by_field_name = True
 
 

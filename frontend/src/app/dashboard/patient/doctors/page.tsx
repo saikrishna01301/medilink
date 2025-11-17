@@ -78,7 +78,14 @@ export default function DoctorsPage() {
       try {
         const data = await doctorAPI.listDoctors(filters);
         setDoctors(data);
-        mergeSpecialties(data.map((doctor) => doctor.specialty));
+        const allSpecialties = data.flatMap((doctor) => 
+          doctor.specialties && doctor.specialties.length > 0 
+            ? doctor.specialties 
+            : doctor.specialty 
+              ? [doctor.specialty] 
+              : []
+        );
+        mergeSpecialties(allSpecialties);
       } catch (err) {
         if (err instanceof APIError) {
           setError(err.detail);
@@ -189,54 +196,54 @@ export default function DoctorsPage() {
 
           <div className="mb-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="md:col-span-2">
-                <div className="flex gap-3">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="Search by doctor name, specialty, or keyword"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={handleInputKeyDown}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-12 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <svg
-                      className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </div>
-                  <button
-                    onClick={handleSearch}
-                    disabled={isLoading}
-                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            <div className="md:col-span-2">
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by doctor name, specialty, or keyword"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-12 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <svg
+                    className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    {isLoading ? "Searching..." : "Search"}
-                  </button>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
                 </div>
-              </div>
-              <div>
-                <select
-                  value={selectedSpecialty}
-                  onChange={(e) => setSelectedSpecialty(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <button
+                  onClick={handleSearch}
+                  disabled={isLoading}
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {specialtyOptions.map((specialty) => (
-                    <option key={specialty} value={specialty}>
-                      {specialty === "All Specialties"
-                        ? specialty
-                        : formatSpecialty(specialty)}
-                    </option>
-                  ))}
-                </select>
+                  {isLoading ? "Searching..." : "Search"}
+                </button>
+              </div>
+            </div>
+            <div>
+              <select
+                value={selectedSpecialty}
+                onChange={(e) => setSelectedSpecialty(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {specialtyOptions.map((specialty) => (
+                  <option key={specialty} value={specialty}>
+                    {specialty === "All Specialties"
+                      ? specialty
+                      : formatSpecialty(specialty)}
+                  </option>
+                ))}
+              </select>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -380,8 +387,8 @@ export default function DoctorsPage() {
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredDoctors.map((doctor) => {
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredDoctors.map((doctor) => {
                   const fullName = [
                     doctor.first_name,
                     doctor.middle_name,
@@ -426,7 +433,18 @@ export default function DoctorsPage() {
                           <h3 className="truncate text-lg font-semibold text-gray-900">
                             {fullName || "Unknown Doctor"}
                           </h3>
-                          {doctor.specialty && (
+                          {doctor.specialties && doctor.specialties.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {doctor.specialties.map((spec, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium"
+                                >
+                                  {spec}
+                                </span>
+                              ))}
+                            </div>
+                          ) : doctor.specialty && (
                             <p className="mt-1 text-sm font-medium text-blue-600">
                               {formatSpecialty(doctor.specialty)}
                             </p>
@@ -555,7 +573,7 @@ export default function DoctorsPage() {
                     </div>
                   );
                 })}
-                </div>
+              </div>
               </>
             )}
           </div>
@@ -608,53 +626,111 @@ export default function DoctorsPage() {
                     .filter(Boolean)
                     .join(" ");
                   const isSelected = selectedDoctor?.id === doctor.id;
+                  const clinics = doctor.clinics && doctor.clinics.length > 0 
+                    ? doctor.clinics 
+                    : doctor.latitude && doctor.longitude
+                      ? [{
+                          address_id: 0,
+                          label: doctor.address_line1 ? "Primary Clinic" : null,
+                          address_line1: doctor.address_line1 || "",
+                          address_line2: doctor.address_line2 || null,
+                          city: doctor.city || "",
+                          state: doctor.state || null,
+                          postal_code: doctor.postal_code || null,
+                          country_code: doctor.country_code || null,
+                          latitude: doctor.latitude,
+                          longitude: doctor.longitude,
+                          place_id: doctor.place_id || null,
+                          is_primary: true,
+                          distance_km: doctor.distance_km || null,
+                        }]
+                      : [];
 
                   return (
-                    <div
-                      key={doctor.id}
-                      onClick={() => setSelectedDoctor(doctor)}
-                      className={`p-4 cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-blue-50 border-l-4 border-blue-600"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <h3 className="font-semibold text-gray-900">{fullName}</h3>
-                      {doctor.specialty && (
-                        <p className="text-sm text-blue-600 mt-1">
-                          {formatSpecialty(doctor.specialty)}
-                        </p>
-                      )}
-                      {doctor.google_rating && (
-                        <div className="mt-2 flex items-center gap-1">
-                          <svg
-                            className="h-4 w-4 text-yellow-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="text-sm font-medium text-gray-700">
-                            {doctor.google_rating.toFixed(1)}
-                          </span>
-                          {doctor.google_user_ratings_total && (
-                            <span className="text-xs text-gray-500">
-                              ({doctor.google_user_ratings_total})
+                    <div key={doctor.id}>
+                      <div
+                        onClick={() => setSelectedDoctor(doctor)}
+                        className={`p-4 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-blue-50 border-l-4 border-blue-600"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <h3 className="font-semibold text-gray-900">{fullName}</h3>
+                        {doctor.specialties && doctor.specialties.length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {doctor.specialties.map((spec, idx) => (
+                              <span
+                                key={idx}
+                                className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium"
+                              >
+                                {spec}
+                              </span>
+                            ))}
+                          </div>
+                        ) : doctor.specialty && (
+                          <p className="text-sm text-blue-600 mt-1">
+                            {formatSpecialty(doctor.specialty)}
+                          </p>
+                        )}
+                        {doctor.google_rating && (
+                          <div className="mt-2 flex items-center gap-1">
+                            <svg
+                              className="h-4 w-4 text-yellow-400"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-700">
+                              {doctor.google_rating.toFixed(1)}
                             </span>
-                          )}
-                        </div>
-                      )}
-                      {doctor.address_line1 && (
-                        <p className="text-sm text-gray-600 mt-2">
-                          {doctor.address_line1}
-                          {doctor.city && `, ${doctor.city}`}
-                        </p>
-                      )}
-                      {doctor.distance_km && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          📍 {doctor.distance_km.toFixed(1)} km away
-                        </p>
-                      )}
+                            {doctor.google_user_ratings_total && (
+                              <span className="text-xs text-gray-500">
+                                ({doctor.google_user_ratings_total})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {clinics.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {clinics.map((clinic, idx) => (
+                              <div key={clinic.address_id || idx} className="text-sm text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  {clinic.is_primary && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                      Primary
+                                    </span>
+                                  )}
+                                  <span className="font-medium">
+                                    {clinic.label || clinic.address_line1 || "Clinic"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 ml-0">
+                                  {clinic.address_line1}
+                                  {clinic.city && `, ${clinic.city}`}
+                                </p>
+                                {clinic.distance_km && (
+                                  <p className="text-xs text-gray-500">
+                                    📍 {clinic.distance_km.toFixed(1)} km away
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {clinics.length === 0 && doctor.address_line1 && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            {doctor.address_line1}
+                            {doctor.city && `, ${doctor.city}`}
+                          </p>
+                        )}
+                        {clinics.length === 0 && doctor.distance_km && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            📍 {doctor.distance_km.toFixed(1)} km away
+                          </p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

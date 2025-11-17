@@ -617,6 +617,10 @@ async def upsert_my_address(
     # For now, mark the source as manual; geocoding can be layered later.
     data.setdefault("location_source", "manual")
 
+    # Remove raw_geocoding_payload if it's None to avoid type mismatch
+    if "raw_geocoding_payload" in data and data["raw_geocoding_payload"] is None:
+        del data["raw_geocoding_payload"]
+
     address = await address_crud.upsert_primary_address_for_user(
         current_user.id, data, session
     )

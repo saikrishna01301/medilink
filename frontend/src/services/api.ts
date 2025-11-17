@@ -305,6 +305,22 @@ export const authAPI = {
 };
 
 // Doctor Profile Types
+export interface Specialty {
+  id: number;
+  nucc_code: string;
+  value: string;
+  label: string;
+  description?: string | null;
+}
+
+export interface DoctorSpecialty {
+  id: number;
+  doctor_user_id: number;
+  specialty_id: number;
+  is_primary: boolean;
+  specialty: Specialty;
+}
+
 export interface DoctorProfile {
   id: number;
   user_id: number;
@@ -320,6 +336,7 @@ export interface DoctorProfile {
   offers_virtual_visits: boolean;
   created_at: string;
   updated_at?: string;
+  specialties?: DoctorSpecialty[];
 }
 
 export interface DoctorClinic {
@@ -355,6 +372,7 @@ export interface DoctorProfileData {
   profile: DoctorProfile | null;
   clinics: DoctorClinic[];
   social_links: DoctorSocialLink[];
+  specialties?: DoctorSpecialty[];
 }
 
 export interface DoctorProfileUpdate {
@@ -378,6 +396,22 @@ export interface UserInfoUpdate {
   emergency_contact?: string;
 }
 
+export interface ClinicLocation {
+  address_id: number;
+  label?: string | null;
+  address_line1: string;
+  address_line2?: string | null;
+  city: string;
+  state?: string | null;
+  postal_code?: string | null;
+  country_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  place_id?: string | null;
+  is_primary: boolean;
+  distance_km?: number | null;
+}
+
 export interface DoctorListItem {
   id: number;
   first_name: string;
@@ -386,6 +420,7 @@ export interface DoctorListItem {
   email: string;
   phone?: string | null;
   specialty?: string | null;
+  specialties?: string[];
   bio?: string | null;
   photo_url?: string | null;
   years_of_experience?: number | null;
@@ -406,6 +441,7 @@ export interface DoctorListItem {
   google_rating?: number | null;
   google_user_ratings_total?: number | null;
   distance_km?: number | null;
+  clinics?: ClinicLocation[];
 }
 
 export interface DoctorSocialLink {
@@ -523,8 +559,8 @@ export const doctorAPI = {
     });
   },
 
-  listSpecialties: async (): Promise<string[]> => {
-    return apiFetch<string[]>("/doctors/specialties", {
+  listSpecialties: async (): Promise<Specialty[]> => {
+    return apiFetch<Specialty[]>("/doctors/specialties", {
       method: "GET",
       defaultError: "Failed to fetch specialties",
     });
@@ -636,6 +672,96 @@ export const doctorAPI = {
       method: "DELETE",
       expectJson: false,
       defaultError: "Failed to delete social link",
+    });
+  },
+
+  listClinics: async (): Promise<Address[]> => {
+    return apiFetch<Address[]>("/doctors/clinics", {
+      method: "GET",
+      defaultError: "Failed to fetch clinics",
+    });
+  },
+
+  createClinic: async (payload: Partial<Pick<Address, "address_line1" | "address_line2" | "city" | "state" | "postal_code" | "country_code" | "label">>): Promise<Address> => {
+    return apiFetch<Address>("/doctors/clinics", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to create clinic",
+    });
+  },
+
+  updateClinic: async (clinicId: number, payload: Partial<Pick<Address, "address_line1" | "address_line2" | "city" | "state" | "postal_code" | "country_code" | "label">>): Promise<Address> => {
+    return apiFetch<Address>(`/doctors/clinics/${clinicId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to update clinic",
+    });
+  },
+
+  deleteClinic: async (clinicId: number): Promise<void> => {
+    await apiFetch<void>(`/doctors/clinics/${clinicId}`, {
+      method: "DELETE",
+      expectJson: false,
+      defaultError: "Failed to delete clinic",
+    });
+  },
+
+  setPrimaryClinic: async (clinicId: number): Promise<Address> => {
+    return apiFetch<Address>(`/doctors/clinics/${clinicId}/set-primary`, {
+      method: "PUT",
+      defaultError: "Failed to set primary clinic",
+    });
+  },
+
+  getMySpecialties: async (): Promise<DoctorSpecialty[]> => {
+    return apiFetch<DoctorSpecialty[]>("/doctors/my-specialties", {
+      method: "GET",
+      defaultError: "Failed to fetch doctor specialties",
+    });
+  },
+
+  addSpecialty: async (specialtyId: number, isPrimary: boolean = false): Promise<DoctorSpecialty> => {
+    const query = new URLSearchParams();
+    query.append("specialty_id", specialtyId.toString());
+    query.append("is_primary", isPrimary.toString());
+    return apiFetch<DoctorSpecialty>(`/doctors/specialties?${query.toString()}`, {
+      method: "POST",
+      defaultError: "Failed to add specialty",
+    });
+  },
+
+  removeSpecialty: async (specialtyId: number): Promise<void> => {
+    await apiFetch<void>(`/doctors/specialties/${specialtyId}`, {
+      method: "DELETE",
+      expectJson: false,
+      defaultError: "Failed to remove specialty",
+    });
+  },
+
+  setPrimarySpecialty: async (specialtyId: number): Promise<DoctorSpecialty> => {
+    return apiFetch<DoctorSpecialty>(`/doctors/specialties/${specialtyId}/set-primary`, {
+      method: "PUT",
+      defaultError: "Failed to set primary specialty",
+    });
+  },
+
+  updateSpecialties: async (specialtyIds: number[], primarySpecialtyId?: number): Promise<DoctorSpecialty[]> => {
+    return apiFetch<DoctorSpecialty[]>("/doctors/specialties", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        specialty_ids: specialtyIds,
+        primary_specialty_id: primarySpecialtyId,
+      }),
+      defaultError: "Failed to update specialties",
     });
   },
 };

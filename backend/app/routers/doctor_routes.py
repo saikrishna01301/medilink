@@ -9,17 +9,27 @@ from fastapi import (
     Query,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from db import get_session
-from db.crud import auth_crud, doctor_crud
+from db.crud import auth_crud, doctor_crud, address_crud, specialty_crud
 from schemas import (
     DoctorProfileUpdate,
     DoctorListItem,
     DoctorSocialLinkCreate,
     DoctorSocialLinkRead,
     DoctorSocialLinkUpdate,
+    AddressUpdate,
+    AddressRead,
+    SpecialtyRead,
+    DoctorSpecialtyRead,
 )
 from services import verify_access_token, get_storage_service
+from services.google_places import (
+    fetch_place_details_by_address,
+    fetch_place_details_by_place_id,
+)
 from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 import uuid
 import os
 
@@ -100,15 +110,15 @@ async def list_doctors(
         patient_longitude=patient_longitude,
     )
     
-    # Fetch Google ratings for doctors with place_id
+    # Fetch Google ratings for doctors and their clinics
     for doctor in doctors:
+        # Fetch rating for primary clinic
         if doctor.get("place_id") and not doctor.get("google_rating"):
             place_data = await fetch_place_details_by_place_id(doctor["place_id"])
             if place_data:
                 doctor["google_rating"] = place_data.get("rating")
                 doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
         elif doctor.get("latitude") and doctor.get("longitude") and not doctor.get("google_rating"):
-            # Try to find place by address if no place_id
             address_parts = [
                 doctor.get("address_line1"),
                 doctor.get("city"),
@@ -122,18 +132,149 @@ async def list_doctors(
                     doctor["google_rating"] = place_data.get("rating")
                     doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
                     doctor["place_id"] = place_data.get("place_id")
+        
+        # Fetch ratings for all clinics
+        if doctor.get("clinics"):
+            for clinic in doctor["clinics"]:
+                if clinic.get("place_id") and not clinic.get("google_rating"):
+                    place_data = await fetch_place_details_by_place_id(clinic["place_id"])
+                    if place_data:
+                        clinic["google_rating"] = place_data.get("rating")
+                        clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
+                elif clinic.get("latitude") and clinic.get("longitude") and not clinic.get("google_rating"):
+                    clinic_address_parts = [
+                        clinic.get("address_line1"),
+                        clinic.get("city"),
+                        clinic.get("state"),
+                        clinic.get("postal_code"),
+                    ]
+                    clinic_address_str = ", ".join([p for p in clinic_address_parts if p])
+                    if clinic_address_str:
+                        place_data = await fetch_place_details_by_address(clinic_address_str)
+                        if place_data:
+                            clinic["google_rating"] = place_data.get("rating")
+                            clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
+                            clinic["place_id"] = place_data.get("place_id")
     
     return doctors
 
 
-@router.get("/specialties", response_model=List[str])
+@router.get("/specialties", response_model=List[SpecialtyRead])
 async def list_specialties(
     session: AsyncSession = Depends(get_session),
     _: Any = Depends(get_authenticated_user),
 ):
-    """Return distinct list of doctor specialties available."""
-    specialties = await doctor_crud.list_distinct_specialties(session)
+    """Return all available medical specialties."""
+    specialties = await specialty_crud.get_all_specialties(session)
     return specialties
+
+
+@router.get("/my-specialties", response_model=List[DoctorSpecialtyRead])
+async def get_my_specialties(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get all specialties for the current doctor."""
+    specialties = await specialty_crud.get_doctor_specialties(current_user.id, session)
+    return specialties
+
+
+@router.post("/specialties", response_model=DoctorSpecialtyRead, status_code=status.HTTP_201_CREATED)
+async def add_specialty(
+    specialty_id: int = Query(..., description="Specialty ID to add"),
+    is_primary: bool = Query(False, description="Set as primary specialty"),
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Add a specialty to the current doctor."""
+    specialty = await specialty_crud.get_specialty_by_id(specialty_id, session)
+    if not specialty:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Specialty not found"
+        )
+    
+    doctor_specialty = await specialty_crud.add_doctor_specialty(
+        current_user.id, specialty_id, is_primary, session
+    )
+    await session.refresh(doctor_specialty)
+    await session.refresh(doctor_specialty.specialty)
+    return doctor_specialty
+
+
+@router.delete("/specialties/{specialty_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_specialty(
+    specialty_id: int,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Remove a specialty from the current doctor."""
+    deleted = await specialty_crud.remove_doctor_specialty(
+        current_user.id, specialty_id, session
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Specialty not found for this doctor"
+        )
+    return None
+
+
+@router.put("/specialties/{specialty_id}/set-primary", response_model=DoctorSpecialtyRead)
+async def set_primary_specialty(
+    specialty_id: int,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Set a specialty as the primary specialty for the current doctor."""
+    doctor_specialty = await specialty_crud.set_primary_specialty(
+        current_user.id, specialty_id, session
+    )
+    if not doctor_specialty:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Specialty not found for this doctor"
+        )
+    await session.refresh(doctor_specialty)
+    await session.refresh(doctor_specialty.specialty)
+    return doctor_specialty
+
+
+class UpdateSpecialtiesRequest(BaseModel):
+    specialty_ids: List[int] = Field(..., description="List of specialty IDs")
+    primary_specialty_id: Optional[int] = Field(None, description="Primary specialty ID")
+
+
+@router.put("/specialties", response_model=List[DoctorSpecialtyRead])
+async def update_specialties(
+    request: UpdateSpecialtiesRequest,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update all specialties for the current doctor. Replaces existing specialties."""
+    for specialty_id in request.specialty_ids:
+        specialty = await specialty_crud.get_specialty_by_id(specialty_id, session)
+        if not specialty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Specialty {specialty_id} not found"
+            )
+    
+    if request.primary_specialty_id and request.primary_specialty_id not in request.specialty_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Primary specialty must be in the list of specialties"
+        )
+    
+    doctor_specialties = await specialty_crud.update_doctor_specialties(
+        current_user.id, request.specialty_ids, request.primary_specialty_id, session
+    )
+    
+    for ds in doctor_specialties:
+        await session.refresh(ds)
+        await session.refresh(ds.specialty)
+    
+    return doctor_specialties
 
 
 
@@ -505,4 +646,257 @@ async def delete_social_link(
             detail="Social link not found",
         )
     return None
+
+
+@router.get("/clinics", response_model=List[AddressRead])
+async def list_my_clinics(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """List all clinics (addresses) for the current doctor."""
+    clinics = await address_crud.list_addresses_for_user(current_user.id, session)
+    return clinics
+
+
+@router.post("/clinics", response_model=AddressRead, status_code=status.HTTP_201_CREATED)
+async def create_clinic(
+    payload: AddressUpdate,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Create a new clinic address for the doctor."""
+    data = payload.model_dump(exclude_unset=True)
+    
+    required_fields = ["address_line1", "city"]
+    if any(not data.get(field) for field in required_fields):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="address_line1 and city are required fields.",
+        )
+    
+    if "country_code" in data and data["country_code"]:
+        data["country_code"] = data["country_code"].upper()
+    
+    data.setdefault("location_source", "manual")
+    data.setdefault("is_primary", False)
+    data.setdefault("label", data.get("label") or "Clinic")
+    
+    address_str = ", ".join([
+        data.get("address_line1", ""),
+        data.get("city", ""),
+        data.get("state", ""),
+        data.get("postal_code", ""),
+    ])
+    
+    if address_str.strip():
+        place_data = await fetch_place_details_by_address(address_str)
+        if place_data:
+            data["latitude"] = place_data.get("latitude")
+            data["longitude"] = place_data.get("longitude")
+            data["place_id"] = place_data.get("place_id")
+            data["formatted_address"] = place_data.get("formatted_address")
+    
+    if not data.get("formatted_address"):
+        formatted = ", ".join(
+            [
+                data.get("address_line1"),
+                data.get("address_line2"),
+                data.get("city"),
+                data.get("state"),
+                data.get("postal_code"),
+                data.get("country_code"),
+            ]
+        ).replace(" ,", "").strip(", ")
+        if formatted:
+            data["formatted_address"] = formatted
+
+    # Remove raw_geocoding_payload if it's None to avoid type mismatch
+    if "raw_geocoding_payload" in data and data["raw_geocoding_payload"] is None:
+        del data["raw_geocoding_payload"]
+
+    try:
+        clinic = await address_crud.create_address_for_user(current_user.id, data, session)
+        return clinic
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Error creating clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to create clinic: {error_detail}",
+        ) from exc
+    except Exception as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Unexpected error creating clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to create clinic: {error_detail}",
+        ) from exc
+
+
+@router.put("/clinics/{clinic_id}", response_model=AddressRead)
+async def update_clinic(
+    clinic_id: int,
+    payload: AddressUpdate,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update an existing clinic address."""
+    data = payload.model_dump(exclude_unset=True)
+    
+    if "country_code" in data and data["country_code"]:
+        data["country_code"] = data["country_code"].upper()
+    
+    address_str = ", ".join([
+        data.get("address_line1", ""),
+        data.get("city", ""),
+        data.get("state", ""),
+        data.get("postal_code", ""),
+    ])
+    
+    if address_str.strip():
+        place_data = await fetch_place_details_by_address(address_str)
+        if place_data:
+            data["latitude"] = place_data.get("latitude")
+            data["longitude"] = place_data.get("longitude")
+            data["place_id"] = place_data.get("place_id")
+            data["formatted_address"] = place_data.get("formatted_address")
+    
+    if not data.get("formatted_address"):
+        formatted = ", ".join(
+            [
+                data.get("address_line1"),
+                data.get("address_line2"),
+                data.get("city"),
+                data.get("state"),
+                data.get("postal_code"),
+                data.get("country_code"),
+            ]
+        ).replace(" ,", "").strip(", ")
+        if formatted:
+            data["formatted_address"] = formatted
+
+    # Remove raw_geocoding_payload if it's None to avoid type mismatch
+    if "raw_geocoding_payload" in data and data["raw_geocoding_payload"] is None:
+        del data["raw_geocoding_payload"]
+
+    try:
+        clinic = await address_crud.update_address_for_user(
+            clinic_id, current_user.id, data, session
+        )
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Error updating clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to update clinic: {error_detail}",
+        ) from exc
+    except Exception as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Unexpected error updating clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to update clinic: {error_detail}",
+        ) from exc
+    
+    if not clinic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Clinic not found",
+        )
+    
+    return clinic
+
+
+@router.delete("/clinics/{clinic_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_clinic(
+    clinic_id: int,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a clinic address."""
+    try:
+        deleted = await address_crud.delete_address_for_user(
+            clinic_id, current_user.id, session
+        )
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Error deleting clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to delete clinic: {error_detail}",
+        ) from exc
+    except Exception as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Unexpected error deleting clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to delete clinic: {error_detail}",
+        ) from exc
+    
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Clinic not found",
+        )
+    
+    return None
+
+
+@router.put("/clinics/{clinic_id}/set-primary", response_model=AddressRead)
+async def set_primary_clinic(
+    clinic_id: int,
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Set a clinic as the primary clinic."""
+    try:
+        clinic = await address_crud.set_primary_address(
+            clinic_id, current_user.id, session
+        )
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Error setting primary clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to set primary clinic: {error_detail}",
+        ) from exc
+    except Exception as exc:
+        await session.rollback()
+        import traceback
+        error_detail = str(exc)
+        print(f"Unexpected error setting primary clinic: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to set primary clinic: {error_detail}",
+        ) from exc
+    
+    if not clinic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Clinic not found",
+        )
+    
+    return clinic
 

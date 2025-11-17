@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict, Any
 
 from sqlalchemy import (
     String,
@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
@@ -59,8 +60,8 @@ class Address(Base):
     location_source: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     timezone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
-    raw_geocoding_payload: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
+    raw_geocoding_payload: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True
     )
 
     is_primary: Mapped[bool] = mapped_column(

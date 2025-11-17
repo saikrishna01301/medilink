@@ -6,6 +6,8 @@ from .models import (
     OTPStore,
     DoctorProfile,
     DoctorSocialLink,
+    Specialty,
+    DoctorSpecialty,
     Appointment,
     Address,
 )
@@ -25,6 +27,8 @@ __all__ = [
     "OTPStore",
     "DoctorProfile",
     "DoctorSocialLink",
+    "Specialty",
+    "DoctorSpecialty",
     "Appointment",
     "Address",
 ]

@@ -173,10 +173,8 @@ export default function DoctorMapWidget({
         markersRef.current.push(patientMarker);
       }
 
-      // Add doctor markers
+      // Add doctor markers - show all clinic locations for each doctor
       doctorsWithLocation.forEach((doctor) => {
-        if (!doctor.latitude || !doctor.longitude) return;
-
         const fullName = [
           doctor.first_name,
           doctor.middle_name,
@@ -185,43 +183,77 @@ export default function DoctorMapWidget({
           .filter(Boolean)
           .join(" ");
 
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="padding: 8px; min-width: 200px;">
-              <h3 style="margin: 0 0 8px 0; font-weight: 600; font-size: 16px;">${fullName}</h3>
-              ${doctor.specialty ? `<p style="margin: 0 0 4px 0; color: #666; font-size: 14px;">${doctor.specialty}</p>` : ""}
-              ${doctor.address_line1 ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">${doctor.address_line1}${doctor.city ? `, ${doctor.city}` : ""}</p>` : ""}
-              ${doctor.google_rating ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">⭐ ${doctor.google_rating.toFixed(1)}${doctor.google_user_ratings_total ? ` (${doctor.google_user_ratings_total} reviews)` : ""}</p>` : ""}
-              ${doctor.distance_km ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">📍 ${doctor.distance_km.toFixed(1)} km away</p>` : ""}
-            </div>
-          `,
-        });
+        const clinics = doctor.clinics && doctor.clinics.length > 0 
+          ? doctor.clinics.filter(c => c.latitude && c.longitude)
+          : doctor.latitude && doctor.longitude
+            ? [{
+                address_id: 0,
+                label: doctor.address_line1 ? "Primary Clinic" : null,
+                address_line1: doctor.address_line1 || "",
+                address_line2: doctor.address_line2 || null,
+                city: doctor.city || "",
+                state: doctor.state || null,
+                postal_code: doctor.postal_code || null,
+                country_code: doctor.country_code || null,
+                latitude: doctor.latitude,
+                longitude: doctor.longitude,
+                place_id: doctor.place_id || null,
+                is_primary: true,
+                distance_km: doctor.distance_km || null,
+              }]
+            : [];
 
-        const marker = new window.google.maps.Marker({
-          position: { lat: doctor.latitude, lng: doctor.longitude },
-          map,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: "#EA4335",
-            fillOpacity: 1,
-            strokeColor: "#FFFFFF",
-            strokeWeight: 2,
-          },
-          title: fullName,
-        });
+        clinics.forEach((clinic, clinicIndex) => {
+          if (!clinic.latitude || !clinic.longitude) return;
 
-        marker.addListener("click", () => {
-          // Close all other info windows
-          infoWindowsRef.current.forEach((iw) => iw.close());
-          infoWindow.open(map, marker);
-          infoWindowsRef.current.push(infoWindow);
-          if (onDoctorClick) {
-            onDoctorClick(doctor);
-          }
-        });
+          const clinicLabel = clinic.label || clinic.address_line1 || "Clinic";
+          const clinicAddress = [
+            clinic.address_line1,
+            clinic.city,
+            clinic.state,
+            clinic.postal_code,
+          ]
+            .filter(Boolean)
+            .join(", ");
 
-        markersRef.current.push(marker);
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `
+              <div style="padding: 8px; min-width: 200px;">
+                <h3 style="margin: 0 0 8px 0; font-weight: 600; font-size: 16px;">${fullName}</h3>
+                ${doctor.specialty ? `<p style="margin: 0 0 4px 0; color: #666; font-size: 14px;">${doctor.specialty}</p>` : ""}
+                ${clinicLabel ? `<p style="margin: 4px 0; color: #666; font-size: 12px; font-weight: 500;">${clinicLabel}${clinic.is_primary ? ' (Primary)' : ''}</p>` : ""}
+                ${clinicAddress ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">${clinicAddress}</p>` : ""}
+                ${doctor.google_rating ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">⭐ ${doctor.google_rating.toFixed(1)}${doctor.google_user_ratings_total ? ` (${doctor.google_user_ratings_total} reviews)` : ""}</p>` : ""}
+                ${clinic.distance_km ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">📍 ${clinic.distance_km.toFixed(1)} km away</p>` : ""}
+              </div>
+            `,
+          });
+
+          const marker = new window.google.maps.Marker({
+            position: { lat: clinic.latitude, lng: clinic.longitude },
+            map,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: clinic.is_primary ? 12 : 10,
+              fillColor: clinic.is_primary ? "#EA4335" : "#FF6B6B",
+              fillOpacity: 1,
+              strokeColor: "#FFFFFF",
+              strokeWeight: clinic.is_primary ? 3 : 2,
+            },
+            title: `${fullName} - ${clinicLabel}`,
+          });
+
+          marker.addListener("click", () => {
+            infoWindowsRef.current.forEach((iw) => iw.close());
+            infoWindow.open(map, marker);
+            infoWindowsRef.current.push(infoWindow);
+            if (onDoctorClick) {
+              onDoctorClick(doctor);
+            }
+          });
+
+          markersRef.current.push(marker);
+        });
       });
 
       setIsMapLoaded(true);

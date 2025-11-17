@@ -3,8 +3,30 @@ from typing import Optional, List
 from datetime import datetime
 
 
+class SpecialtyRead(BaseModel):
+    id: int
+    nucc_code: str
+    value: str
+    label: str
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DoctorSpecialtyRead(BaseModel):
+    id: int
+    doctor_user_id: int
+    specialty_id: int
+    is_primary: bool
+    specialty: SpecialtyRead
+
+    class Config:
+        from_attributes = True
+
+
 class DoctorProfileBase(BaseModel):
-    specialty: str = Field(..., description="Doctor's specialty")
+    specialty: str = Field(..., description="Doctor's primary specialty (legacy field)")
     bio: Optional[str] = Field(None, description="Doctor's biography")
     photo_url: Optional[str] = Field(None, max_length=500, description="URL to doctor's photo")
     years_of_experience: Optional[int] = Field(None, ge=0, description="Years of experience")
@@ -44,6 +66,7 @@ class DoctorProfileRead(DoctorProfileBase):
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime]
+    specialties: List[DoctorSpecialtyRead] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -99,6 +122,26 @@ class DoctorSocialLinkRead(DoctorSocialLinkBase):
 DoctorProfileWithUser.model_rebuild()
 
 
+class ClinicLocation(BaseModel):
+    """Clinic location data for a doctor."""
+    address_id: int
+    label: Optional[str] = None
+    address_line1: str
+    address_line2: Optional[str] = None
+    city: str
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    place_id: Optional[str] = None
+    is_primary: bool
+    distance_km: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
 class DoctorListItem(BaseModel):
     """Simplified doctor data for patient discovery."""
     id: int
@@ -108,6 +151,7 @@ class DoctorListItem(BaseModel):
     email: str
     phone: Optional[str] = None
     specialty: Optional[str] = None
+    specialties: List[str] = Field(default_factory=list)
     bio: Optional[str] = None
     photo_url: Optional[str] = None
     years_of_experience: Optional[int] = None
@@ -128,6 +172,7 @@ class DoctorListItem(BaseModel):
     google_rating: Optional[float] = None
     google_user_ratings_total: Optional[int] = None
     distance_km: Optional[float] = None
+    clinics: List[ClinicLocation] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
