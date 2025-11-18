@@ -216,6 +216,20 @@ export default function DoctorMapWidget({
             .filter(Boolean)
             .join(", ");
 
+          // Generate Google Maps URL
+          // Priority: place_id > coordinates > address
+          let googleMapsUrl = "";
+          if (clinic.place_id) {
+            // Use place_id for the most accurate link
+            googleMapsUrl = `https://www.google.com/maps/place/?q=place_id:${clinic.place_id}`;
+          } else if (clinic.latitude && clinic.longitude) {
+            // Use coordinates
+            googleMapsUrl = `https://www.google.com/maps/?q=${clinic.latitude},${clinic.longitude}`;
+          } else if (clinicAddress) {
+            // Fallback to address search
+            googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clinicAddress)}`;
+          }
+
           const infoWindow = new window.google.maps.InfoWindow({
             content: `
               <div style="padding: 8px; min-width: 200px;">
@@ -225,6 +239,13 @@ export default function DoctorMapWidget({
                 ${clinicAddress ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">${clinicAddress}</p>` : ""}
                 ${doctor.google_rating ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">⭐ ${doctor.google_rating.toFixed(1)}${doctor.google_user_ratings_total ? ` (${doctor.google_user_ratings_total} reviews)` : ""}</p>` : ""}
                 ${clinic.distance_km ? `<p style="margin: 4px 0; color: #666; font-size: 12px;">📍 ${clinic.distance_km.toFixed(1)} km away</p>` : ""}
+                ${googleMapsUrl ? `
+                  <div style="border-top: 1px solid #e0e0e0; margin-top: 8px; padding-top: 8px;">
+                    <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="color: #4285F4; text-decoration: none; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center;">
+                      View on Google Maps
+                    </a>
+                  </div>
+                ` : ""}
               </div>
             `,
           });
