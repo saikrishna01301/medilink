@@ -23,14 +23,22 @@ export default function DoctorsPage() {
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorListItem | null>(null);
 
-  const mergeSpecialties = useCallback((incoming: Array<string | null | undefined>) => {
+  const mergeSpecialties = useCallback((incoming: Array<string | null | undefined | { value?: string; label?: string }>) => {
     setSpecialtyOptions((prev) => {
       const existing = new Set(
         prev.filter((option) => option !== "All Specialties")
       );
 
       incoming.forEach((value) => {
-        const cleaned = (value ?? "").trim();
+        // Handle Specialty objects from API
+        let stringValue: string;
+        if (value && typeof value === 'object' && 'value' in value) {
+          stringValue = value.value ?? value.label ?? "";
+        } else {
+          stringValue = String(value ?? "");
+        }
+        
+        const cleaned = stringValue.trim();
         if (cleaned.length > 0) {
           existing.add(cleaned);
         }
