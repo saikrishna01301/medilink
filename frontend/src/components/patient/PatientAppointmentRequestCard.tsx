@@ -1,0 +1,259 @@
+"use client";
+
+import { useState } from "react";
+import { appointmentRequestAPI, AppointmentRequest, APIError } from "@/services/api";
+
+interface PatientAppointmentRequestCardProps {
+  request: AppointmentRequest;
+  onUpdate: () => void;
+}
+
+export default function PatientAppointmentRequestCard({ request, onUpdate }: PatientAppointmentRequestCardProps) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debug: Log component render
+  console.log("PatientAppointmentRequestCard rendered:", {
+    request_id: request.request_id,
+    status: request.status,
+    has_suggested_date: !!request.suggested_date,
+    has_suggested_time: !!request.suggested_time_slot_start,
+  });
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(":");
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const handleAcceptAlternative = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("=== ACCEPT BUTTON CLICKED ===");
+    console.log("Request object:", request);
+    console.log("Request ID:", request.request_id);
+    console.log("Current status:", request.status);
+    
+    setIsProcessing(true);
+    setError(null);
+    try {
+      console.log("Calling API to accept alternative time...");
+      const updated = await appointmentRequestAPI.update(request.request_id, {
+        status: "patient_accepted_alternative",
+      });
+      console.log("Update successful! New status:", updated.status);
+      console.log("Updated request:", updated);
+      setIsProcessing(false);
+      // Force immediate refresh
+      console.log("Refreshing request list immediately...");
+      onUpdate();
+    } catch (err) {
+      console.error("=== ERROR ACCEPTING ALTERNATIVE ===");
+      console.error("Error object:", err);
+      console.error("Error type:", typeof err);
+      console.error("Error instanceof APIError:", err instanceof APIError);
+      setIsProcessing(false);
+      if (err instanceof APIError) {
+        console.error("APIError detail:", err.detail);
+        setError(err.detail || "Failed to accept alternative time");
+      } else if (err instanceof Error) {
+        console.error("Error message:", err.message);
+        setError(err.message || "Failed to accept alternative time");
+      } else {
+        console.error("Unknown error:", JSON.stringify(err));
+        setError("Failed to accept alternative time. Please try again.");
+      }
+    }
+  };
+
+  const handleRejectAlternative = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("=== REJECT BUTTON CLICKED ===");
+    console.log("Request object:", request);
+    console.log("Request ID:", request.request_id);
+    console.log("Current status:", request.status);
+    
+    if (!confirm("Are you sure you want to reject the doctor's suggested alternative time?")) {
+      console.log("User cancelled rejection");
+      return;
+    }
+    setIsProcessing(true);
+    setError(null);
+    try {
+      console.log("Calling API to reject alternative time...");
+      const updated = await appointmentRequestAPI.update(request.request_id, {
+        status: "patient_rejected_alternative",
+      });
+      console.log("Update successful! New status:", updated.status);
+      console.log("Updated request:", updated);
+      setIsProcessing(false);
+      // Force immediate refresh
+      console.log("Refreshing request list immediately...");
+      onUpdate();
+    } catch (err) {
+      console.error("=== ERROR REJECTING ALTERNATIVE ===");
+      console.error("Error object:", err);
+      console.error("Error type:", typeof err);
+      console.error("Error instanceof APIError:", err instanceof APIError);
+      setIsProcessing(false);
+      if (err instanceof APIError) {
+        console.error("APIError detail:", err.detail);
+        setError(err.detail || "Failed to reject alternative time");
+      } else if (err instanceof Error) {
+        console.error("Error message:", err.message);
+        setError(err.message || "Failed to reject alternative time");
+      } else {
+        console.error("Unknown error:", JSON.stringify(err));
+        setError("Failed to reject alternative time. Please try again.");
+      }
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
+      pending: { label: "Pending", className: "bg-yellow-100 text-yellow-700" },
+      accepted: { label: "Accepted", className: "bg-green-100 text-green-700" },
+      rejected: { label: "Rejected", className: "bg-red-100 text-red-700" },
+      doctor_suggested_alternative: { label: "Alternative Suggested", className: "bg-blue-100 text-blue-700" },
+      patient_accepted_alternative: { label: "Alternative Accepted", className: "bg-green-100 text-green-700" },
+      patient_rejected_alternative: { label: "Alternative Rejected", className: "bg-red-100 text-red-700" },
+      confirmed: { label: "Confirmed", className: "bg-green-100 text-green-700" },
+      cancelled: { label: "Cancelled", className: "bg-gray-100 text-gray-700" },
+    };
+    const statusInfo = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-700" };
+    return (
+      <span className={`px-2 py-1 ${statusInfo.className} text-xs font-medium rounded`}>
+        {statusInfo.label}
+      </span>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            {getStatusBadge(request.status)}
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+            Appointment Request
+          </h3>
+          <p className="text-sm text-gray-600">
+            Requested Date: <span className="font-medium">{formatDate(request.preferred_date)}</span>
+          </p>
+          <p className="text-sm text-gray-600">
+            Requested Time: <span className="font-medium">
+              {formatTime(request.preferred_time_slot_start)}
+            </span>
+          </p>
+          {request.reason && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-gray-700">Reason:</p>
+              <p className="text-sm text-gray-600">{request.reason}</p>
+            </div>
+          )}
+          {request.notes && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-gray-700">Notes:</p>
+              <p className="text-sm text-gray-600">{request.notes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {request.status === "doctor_suggested_alternative" && request.suggested_date && request.suggested_time_slot_start && (
+        <div className="border-t border-gray-200 pt-3 space-y-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm font-medium text-blue-900 mb-1">Doctor Suggested Alternative Time:</p>
+            <p className="text-sm text-blue-700">
+              <span className="font-medium">
+                {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
+              </span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleAcceptAlternative}
+              disabled={isProcessing}
+              className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isProcessing ? "Processing..." : "Accept Alternative"}
+            </button>
+            <button
+              type="button"
+              onClick={handleRejectAlternative}
+              disabled={isProcessing}
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isProcessing ? "Processing..." : "Reject Alternative"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {request.status === "accepted" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-green-600 font-medium">✓ Appointment Accepted by Doctor</p>
+          {request.appointment_id && (
+            <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
+          )}
+        </div>
+      )}
+
+      {request.status === "rejected" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-red-600 font-medium">✗ Appointment Rejected by Doctor</p>
+        </div>
+      )}
+
+      {request.status === "patient_accepted_alternative" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-green-600 font-medium">✓ Alternative Time Accepted</p>
+          <p className="text-xs text-gray-500 mt-1">Appointment is being confirmed...</p>
+        </div>
+      )}
+
+      {request.status === "patient_rejected_alternative" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-red-600 font-medium">✗ Alternative Time Rejected</p>
+          <p className="text-xs text-gray-500 mt-1">The appointment request remains pending.</p>
+        </div>
+      )}
+
+      {request.status === "confirmed" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-green-600 font-medium">✓ Appointment Confirmed</p>
+          {request.appointment_id && (
+            <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
+          )}
+        </div>
+      )}
+
+      {request.status === "cancelled" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-gray-600 font-medium">✗ Appointment Cancelled</p>
+          <p className="text-xs text-gray-500 mt-1">The appointment request has been cancelled.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+

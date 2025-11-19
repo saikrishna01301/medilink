@@ -56,7 +56,8 @@ async def get_current_user(
         )
     
     # Verify user is a doctor
-    if user.role != "doctor":
+    role_value = user.role.value if hasattr(user.role, 'value') else str(user.role) if user.role else None
+    if role_value != "doctor":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This endpoint is only accessible to doctors"

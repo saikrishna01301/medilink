@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
 import { doctorAPI } from "@/services/api";
+import NotificationBell from "@/components/common/NotificationBell";
 
 interface DoctorLayoutProps {
   children: React.ReactNode;
@@ -139,14 +140,7 @@ export default function DoctorLayout({ children }: DoctorLayoutProps) {
                   height={20}
                 />
               </button>
-              <button className="text-gray-600 hover:text-gray-800">
-                <Image
-                  src="/icons/bell.svg"
-                  alt="Notifications"
-                  width={20}
-                  height={20}
-                />
-              </button>
+              <NotificationBell />
 
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
                 <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden relative">

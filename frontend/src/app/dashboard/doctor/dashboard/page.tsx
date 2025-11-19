@@ -1,12 +1,37 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
-
+import { doctorDashboardAPI, DoctorDashboardStats, APIError } from "@/services/api";
 import CalendarWidget from "@/components/doctor/CalendarWidget";
 
 export default function DoctorDashboardContent() {
   const { user: _user } = useAuth();
+  const [stats, setStats] = useState<DoctorDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await doctorDashboardAPI.getStats();
+        setStats(data);
+      } catch (err) {
+        if (err instanceof APIError) {
+          setError(err.detail);
+        } else {
+          setError("Failed to load dashboard statistics");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
@@ -26,7 +51,9 @@ export default function DoctorDashboardContent() {
               <p className="text-xs text-gray-600 mb-0.5">
                 Completed Appointments
               </p>
-              <p className="text-2xl font-bold text-gray-900">128</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {isLoading ? "..." : stats?.completed_appointments ?? 0}
+              </p>
             </div>
             <div className="flex flex-col items-end">
               <div className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded flex items-center gap-1">
@@ -56,7 +83,9 @@ export default function DoctorDashboardContent() {
               <p className="text-xs text-gray-600 mb-0.5">
                 Upcoming Appointments
               </p>
-              <p className="text-2xl font-bold text-gray-900">44</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {isLoading ? "..." : stats?.upcoming_appointments ?? 0}
+              </p>
             </div>
             <div className="flex flex-col items-end">
               <div className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded flex items-center gap-1">
@@ -85,7 +114,9 @@ export default function DoctorDashboardContent() {
               <p className="text-xs text-gray-600 mb-0.5">
                 Patient Requests
               </p>
-              <p className="text-2xl font-bold text-gray-900">109</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {isLoading ? "..." : stats?.pending_requests ?? 0}
+              </p>
             </div>
             <div className="flex flex-col items-end">
               <div className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded flex items-center gap-1">
@@ -119,19 +150,25 @@ export default function DoctorDashboardContent() {
           <div className="space-y-1.5">
             <div>
               <p className="text-xs text-gray-600">
-                <span className="font-semibold text-gray-900">172</span>{" "}
+                <span className="font-semibold text-gray-900">
+                  {isLoading ? "..." : stats?.total_appointments_this_week ?? 0}
+                </span>{" "}
                 Appointments
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-600">
-                <span className="font-semibold text-red-600">3</span>{" "}
+                <span className="font-semibold text-red-600">
+                  {isLoading ? "..." : stats?.cancelled_appointments_this_week ?? 0}
+                </span>{" "}
                 Cancelled
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-600">
-                <span className="font-semibold text-gray-900">9</span>{" "}
+                <span className="font-semibold text-gray-900">
+                  {isLoading ? "..." : stats?.reschedule_requests ?? 0}
+                </span>{" "}
                 Reschedule requested
               </p>
             </div>

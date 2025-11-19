@@ -5,6 +5,7 @@ import Image from "next/image";
 import { doctorAPI, DoctorListItem, APIError } from "@/services/api";
 import { formatSpecialty } from "@/utils/formatSpecialty";
 import DoctorMapWidget from "@/components/DoctorMapWidget";
+import RequestAppointmentModal from "@/components/patient/RequestAppointmentModal";
 
 export default function DoctorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,6 +23,8 @@ export default function DoctorsPage() {
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorListItem | null>(null);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [selectedDoctorForRequest, setSelectedDoctorForRequest] = useState<DoctorListItem | null>(null);
 
   const mergeSpecialties = useCallback((incoming: Array<string | null | undefined | { value?: string; label?: string }>) => {
     setSpecialtyOptions((prev) => {
@@ -161,9 +164,14 @@ export default function DoctorsPage() {
     }
   };
 
-  const handleBookAppointment = (doctorId: number) => {
-    // TODO: Integrate scheduling workflow
-    console.log("Book appointment for doctor:", doctorId);
+  const handleBookAppointment = (doctor: DoctorListItem) => {
+    setSelectedDoctorForRequest(doctor);
+    setRequestModalOpen(true);
+  };
+
+  const handleRequestSuccess = () => {
+    // Optionally refresh the list or show a success message
+    console.log("Appointment request submitted successfully");
   };
 
   const handleSendMessage = (doctorId: number) => {
@@ -560,10 +568,10 @@ export default function DoctorsPage() {
 
                       <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => handleBookAppointment(doctor.id)}
+                          onClick={() => handleBookAppointment(doctor)}
                           className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                         >
-                          Book Appointment
+                          Request Appointment
                         </button>
                         <button
                           onClick={() => handleSendMessage(doctor.id)}
@@ -746,6 +754,25 @@ export default function DoctorsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedDoctorForRequest && (
+        <RequestAppointmentModal
+          isOpen={requestModalOpen}
+          onClose={() => {
+            setRequestModalOpen(false);
+            setSelectedDoctorForRequest(null);
+          }}
+          doctorId={selectedDoctorForRequest.id}
+          doctorName={[
+            selectedDoctorForRequest.first_name,
+            selectedDoctorForRequest.middle_name,
+            selectedDoctorForRequest.last_name,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          onSuccess={handleRequestSuccess}
+        />
       )}
     </main>
   );

@@ -2,6 +2,8 @@ from .user_model import User
 from .auth_model import DBSession, OTPStore
 from .doctor_model import DoctorProfile, DoctorSocialLink, Specialty, DoctorSpecialty
 from .appointment_model import Appointment
+from .appointment_request_model import AppointmentRequest, AppointmentRequestStatus
+from .notification_model import Notification, NotificationType, NotificationStatus
 from .address_model import Address
 
 __all__ = [
@@ -13,5 +15,10 @@ __all__ = [
     "Specialty",
     "DoctorSpecialty",
     "Appointment",
+    "AppointmentRequest",
+    "AppointmentRequestStatus",
+    "Notification",
+    "NotificationType",
+    "NotificationStatus",
     "Address",
 ]

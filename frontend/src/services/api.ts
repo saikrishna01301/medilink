@@ -803,3 +803,171 @@ export const calendarAPI = {
   },
 };
 
+export interface AppointmentRequest {
+  request_id: number;
+  patient_user_id: number;
+  doctor_user_id: number;
+  clinic_id?: number | null;
+  preferred_date: string;
+  preferred_time_slot_start: string;
+  is_flexible: boolean;
+  status: string;
+  reason?: string | null;
+  notes?: string | null;
+  suggested_date?: string | null;
+  suggested_time_slot_start?: string | null;
+  appointment_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentRequestCreate {
+  doctor_user_id: number;
+  clinic_id?: number;
+  preferred_date: string;
+  preferred_time_slot_start: string;
+  is_flexible: boolean;
+  reason?: string;
+  notes?: string;
+}
+
+export interface AppointmentRequestUpdate {
+  status?: string;
+  suggested_date?: string;
+  suggested_time_slot_start?: string;
+  notes?: string;
+}
+
+export interface Notification {
+  notification_id: number;
+  user_id: number;
+  type: string;
+  title: string;
+  message: string;
+  status: string;
+  related_entity_type?: string | null;
+  related_entity_id?: number | null;
+  appointment_request_id?: number | null;
+  appointment_id?: number | null;
+  notification_metadata?: Record<string, any> | null;
+  created_at: string;
+  read_at?: string | null;
+  archived_at?: string | null;
+}
+
+export const appointmentRequestAPI = {
+  create: async (data: AppointmentRequestCreate): Promise<AppointmentRequest> => {
+    return apiFetch<AppointmentRequest>("/appointment-requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      defaultError: "Failed to create appointment request",
+    });
+  },
+
+  listForPatient: async (status?: string): Promise<AppointmentRequest[]> => {
+    const query = status ? `?status=${status}` : "";
+    return apiFetch<AppointmentRequest[]>(`/appointment-requests/patient${query}`, {
+      method: "GET",
+      defaultError: "Failed to fetch appointment requests",
+    });
+  },
+
+  listForDoctor: async (status?: string): Promise<AppointmentRequest[]> => {
+    const query = status ? `?status=${status}` : "";
+    return apiFetch<AppointmentRequest[]>(`/appointment-requests/doctor${query}`, {
+      method: "GET",
+      defaultError: "Failed to fetch appointment requests",
+    });
+  },
+
+  get: async (requestId: number): Promise<AppointmentRequest> => {
+    return apiFetch<AppointmentRequest>(`/appointment-requests/${requestId}`, {
+      method: "GET",
+      defaultError: "Failed to fetch appointment request",
+    });
+  },
+
+  update: async (requestId: number, data: AppointmentRequestUpdate): Promise<AppointmentRequest> => {
+    return apiFetch<AppointmentRequest>(`/appointment-requests/${requestId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      defaultError: "Failed to update appointment request",
+    });
+  },
+};
+
+export interface DoctorDashboardStats {
+  completed_appointments: number;
+  upcoming_appointments: number;
+  pending_requests: number;
+  total_appointments_this_week: number;
+  cancelled_appointments_this_week: number;
+  reschedule_requests: number;
+  unique_patients_this_week: number;
+}
+
+export const doctorDashboardAPI = {
+  getStats: async (): Promise<DoctorDashboardStats> => {
+    return apiFetch<DoctorDashboardStats>("/doctors/dashboard/stats", {
+      method: "GET",
+      defaultError: "Failed to fetch dashboard statistics",
+    });
+  },
+};
+
+export const notificationAPI = {
+  list: async (params?: { status?: string; limit?: number; offset?: number }): Promise<Notification[]> => {
+    const query = new URLSearchParams();
+    if (params?.status) query.append("status", params.status);
+    if (params?.limit) query.append("limit", params.limit.toString());
+    if (params?.offset) query.append("offset", params.offset.toString());
+
+    const path = query.toString() ? `/notifications?${query.toString()}` : "/notifications";
+    return apiFetch<Notification[]>(path, {
+      method: "GET",
+      defaultError: "Failed to fetch notifications",
+    });
+  },
+
+  getUnreadCount: async (): Promise<{ count: number }> => {
+    return apiFetch<{ count: number }>("/notifications/unread/count", {
+      method: "GET",
+      defaultError: "Failed to fetch unread count",
+    });
+  },
+
+  get: async (notificationId: number): Promise<Notification> => {
+    return apiFetch<Notification>(`/notifications/${notificationId}`, {
+      method: "GET",
+      defaultError: "Failed to fetch notification",
+    });
+  },
+
+  markAsRead: async (notificationId: number): Promise<Notification> => {
+    return apiFetch<Notification>(`/notifications/${notificationId}/read`, {
+      method: "PATCH",
+      defaultError: "Failed to mark notification as read",
+    });
+  },
+
+  markAllAsRead: async (): Promise<{ count: number }> => {
+    return apiFetch<{ count: number }>("/notifications/read-all", {
+      method: "POST",
+      defaultError: "Failed to mark all notifications as read",
+    });
+  },
+
+  archive: async (notificationId: number): Promise<Notification> => {
+    return apiFetch<Notification>(`/notifications/${notificationId}/archive`, {
+      method: "PATCH",
+      defaultError: "Failed to archive notification",
+    });
+  },
+};
+

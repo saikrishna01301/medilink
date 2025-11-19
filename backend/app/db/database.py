@@ -10,6 +10,8 @@ from db.models import (
     Specialty,
     DoctorSpecialty,
     Appointment,
+    AppointmentRequest,
+    Notification,
     Address,
 )
 from core import config

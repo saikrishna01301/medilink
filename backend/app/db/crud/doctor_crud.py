@@ -1,4 +1,4 @@
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import DoctorProfile, DoctorSocialLink, User, Address, DoctorSpecialty, Specialty
 from db.models.user_model import UserRoleEnum
@@ -201,13 +201,12 @@ async def list_doctors_with_profiles(
     patient_longitude: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     """Return all doctors with their profile information, including all clinic addresses and distances.
-    Only returns doctors who are accepting new patients."""
-    # Use INNER JOIN since we require that doctors have profiles and are accepting new patients
+    Returns all users with role='doctor' regardless of profile existence or accepting_new_patients status."""
+    # Use LEFT JOIN to include all doctors, even those without profiles
     stmt = (
         select(User, DoctorProfile)
-        .join(DoctorProfile, DoctorProfile.user_id == User.id)
+        .outerjoin(DoctorProfile, DoctorProfile.user_id == User.id)
         .where(User.role == UserRoleEnum.doctor)
-        .where(DoctorProfile.accepting_new_patients == True)
     )
 
     if specialty:
@@ -219,12 +218,16 @@ async def list_doctors_with_profiles(
                 func.lower(Specialty.label) == func.lower(specialty)
             )
         )
-        stmt = stmt.where(
-            or_(
-                User.id.in_(specialty_subquery),
+        # Handle specialty filter - check both doctor_specialties table and profile specialty field
+        specialty_conditions = [User.id.in_(specialty_subquery)]
+        # Only check profile specialty if profile exists
+        specialty_conditions.append(
+            and_(
+                DoctorProfile.user_id.is_not(None),
                 func.lower(DoctorProfile.specialty) == func.lower(specialty)
             )
         )
+        stmt = stmt.where(or_(*specialty_conditions))
 
     if search:
         search_pattern = f"%{search.lower()}%"
@@ -253,18 +256,24 @@ async def list_doctors_with_profiles(
             )
         )
         
-        stmt = stmt.where(
-            or_(
-                func.lower(User.first_name).like(search_pattern),
-                func.lower(User.middle_name).like(search_pattern),
-                func.lower(User.last_name).like(search_pattern),
-                full_name.like(search_pattern),
-                first_last_name.like(search_pattern),
-                func.lower(User.email).like(search_pattern),
-                func.lower(DoctorProfile.specialty).like(search_pattern),
-                User.id.in_(specialty_search_subquery)
+        # Build search conditions - handle cases where profile might be None
+        search_conditions = [
+            func.lower(User.first_name).like(search_pattern),
+            func.lower(User.middle_name).like(search_pattern),
+            func.lower(User.last_name).like(search_pattern),
+            full_name.like(search_pattern),
+            first_last_name.like(search_pattern),
+            func.lower(User.email).like(search_pattern),
+            User.id.in_(specialty_search_subquery)
+        ]
+        # Only search profile specialty if profile exists
+        search_conditions.append(
+            and_(
+                DoctorProfile.user_id.is_not(None),
+                func.lower(DoctorProfile.specialty).like(search_pattern)
             )
         )
+        stmt = stmt.where(or_(*search_conditions))
 
     stmt = stmt.order_by(func.lower(User.last_name), func.lower(User.first_name))
     result = await session.execute(stmt)

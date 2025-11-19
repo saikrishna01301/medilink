@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
+import NotificationBell from "@/components/common/NotificationBell";
 import Link from "next/link";
 
 interface PatientLayoutProps {
@@ -86,14 +87,7 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                   height={20}
                 />
               </button>
-              <button className="text-gray-600 hover:text-gray-800">
-                <Image
-                  src="/icons/bell.svg"
-                  alt="Notifications"
-                  width={20}
-                  height={20}
-                />
-              </button>
+              <NotificationBell />
 
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
                 <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">

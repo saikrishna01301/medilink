@@ -161,7 +161,8 @@ async def create_calendar_event(
     patient_user_id = payload.patient_user_id
     doctor_user_id = payload.doctor_user_id
 
-    if current_user.role == "doctor":
+    role_value = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role) if current_user.role else None
+    if role_value == "doctor":
         doctor_user_id = doctor_user_id or current_user.id
         patient_user_id = patient_user_id or current_user.id
     else:

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db import init_db
 from db.database import init_connector, close_connector
-from routers import auth_routes, doctor_routes, google_calendar_routes
+from routers import auth_routes, doctor_routes, google_calendar_routes, appointment_request_routes, notification_routes, doctor_dashboard_routes
 
 
 app = FastAPI()
@@ -42,3 +42,6 @@ async def on_shutdown():
 app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
 app.include_router(doctor_routes.router, prefix="/doctors", tags=["doctors"])
 app.include_router(google_calendar_routes.router, prefix="/calendar/google", tags=["google-calendar"])
+app.include_router(appointment_request_routes.router, prefix="/appointment-requests", tags=["appointment-requests"])
+app.include_router(notification_routes.router, prefix="/notifications", tags=["notifications"])
+app.include_router(doctor_dashboard_routes.router, prefix="/doctors", tags=["doctor-dashboard"])

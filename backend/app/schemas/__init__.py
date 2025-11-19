@@ -14,6 +14,17 @@ from .doctor_schema import (
     DoctorSpecialtyRead,
 )
 from .appointment_schema import AppointmentCreate, AppointmentRead
+from .appointment_request_schema import (
+    AppointmentRequestCreate,
+    AppointmentRequestUpdate,
+    AppointmentRequestRead,
+    AppointmentRequestResponse,
+)
+from .notification_schema import (
+    NotificationCreate,
+    NotificationUpdate,
+    NotificationRead,
+)
 from .address_schema import AddressUpdate, AddressRead
 
 __all__ = [
@@ -34,6 +45,13 @@ __all__ = [
     DoctorSpecialtyRead,
     AppointmentCreate,
     AppointmentRead,
+    AppointmentRequestCreate,
+    AppointmentRequestUpdate,
+    AppointmentRequestRead,
+    AppointmentRequestResponse,
+    NotificationCreate,
+    NotificationUpdate,
+    NotificationRead,
     AddressUpdate,
     AddressRead,
 ]
