@@ -66,3 +66,32 @@ async def create_appointment(
     await session.refresh(appointment)
     return appointment
 
+
+async def get_appointment_by_id(
+    session: AsyncSession,
+    appointment_id: int,
+) -> Optional[Appointment]:
+    stmt = select(Appointment).where(Appointment.appointment_id == appointment_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def update_appointment(
+    session: AsyncSession,
+    appointment_id: int,
+    *,
+    status: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Optional[Appointment]:
+    appointment = await get_appointment_by_id(session, appointment_id)
+    if not appointment:
+        return None
+
+    if status is not None:
+        appointment.status = status
+    if notes is not None:
+        appointment.notes = notes
+
+    await session.commit()
+    await session.refresh(appointment)
+    return appointment

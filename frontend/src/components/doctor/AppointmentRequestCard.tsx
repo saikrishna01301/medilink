@@ -264,6 +264,15 @@ export default function AppointmentRequestCard({ request, onUpdate }: Appointmen
           <p className="text-sm text-red-600 font-medium">✗ Appointment Rejected</p>
         </div>
       )}
+
+      {request.status === "cancelled" && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-gray-600 font-medium">✗ Appointment Cancelled</p>
+          {request.notes && request.notes.includes("Cancelled by patient") && (
+            <p className="text-xs text-gray-500 mt-1">Cancelled by patient</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

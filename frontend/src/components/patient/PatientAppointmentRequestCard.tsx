@@ -106,6 +106,48 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
     }
   };
 
+  const handleCancel = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const appointmentType = request.status === "confirmed" ? "appointment" : "appointment request";
+    if (!confirm(`Are you sure you want to cancel this ${appointmentType}?`)) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      console.log("=== CANCEL APPOINTMENT ===");
+      console.log("Request ID:", request.request_id);
+      console.log("Current status:", request.status);
+      
+      const updated = await appointmentRequestAPI.update(request.request_id, {
+        status: "cancelled",
+      });
+      
+      console.log("API Response - Updated request:", updated);
+      console.log("New status from API:", updated.status);
+      
+      setIsProcessing(false);
+      
+      // Refresh immediately
+      console.log("Refreshing request list...");
+      onUpdate();
+    } catch (err) {
+      console.error("Error cancelling appointment:", err);
+      setIsProcessing(false);
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to cancel appointment");
+      } else if (err instanceof Error) {
+        setError(err.message || "Failed to cancel appointment");
+      } else {
+        setError("Failed to cancel appointment. Please try again.");
+      }
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
       pending: { label: "Pending", className: "bg-yellow-100 text-yellow-700" },
@@ -232,6 +274,23 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
         <div className="border-t border-gray-200 pt-3">
           <p className="text-sm text-gray-600 font-medium">✗ Appointment Cancelled</p>
           <p className="text-xs text-gray-500 mt-1">The appointment request has been cancelled.</p>
+          {request.notes && request.notes.includes("Cancelled by patient") && (
+            <p className="text-xs text-gray-500 mt-1">Cancelled by patient</p>
+          )}
+        </div>
+      )}
+
+      {/* Cancel button - show for pending and confirmed appointments */}
+      {(request.status === "pending" || request.status === "confirmed" || request.status === "accepted" || request.status === "doctor_suggested_alternative") && (
+        <div className="border-t border-gray-200 pt-3">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={isProcessing}
+            className="w-full rounded-lg border-2 border-red-600 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isProcessing ? "Cancelling..." : "Cancel Appointment"}
+          </button>
         </div>
       )}
     </div>

@@ -389,11 +389,51 @@ async def update_appointment_request(
                 related_entity_id=request_id,
             )
         
+        elif new_status == "cancelled":
+            # Patient can cancel any appointment request (pending or confirmed)
+            cancellation_note = f"Cancelled by patient. {update_data.notes or ''}".strip()
+            
+            # Update request status to "cancelled"
+            await appointment_request_crud.update_appointment_request(
+                session,
+                request_id,
+                status="cancelled",
+                notes=cancellation_note,
+            )
+            
+            # If there's a confirmed appointment, also cancel it
+            if request.appointment_id:
+                from db.crud import appointment_crud
+                appointment = await appointment_crud.get_appointment_by_id(
+                    session,
+                    request.appointment_id,
+                )
+                if appointment:
+                    await appointment_crud.update_appointment(
+                        session,
+                        request.appointment_id,
+                        status="cancelled",
+                        notes=cancellation_note,
+                    )
+            
+            # Notify doctor
+            await notification_crud.create_notification(
+                session,
+                user_id=request.doctor_user_id,
+                type="appointment_cancelled",
+                title="Appointment Cancelled by Patient",
+                message=f"{patient_name} has cancelled the appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}.",
+                appointment_request_id=request_id,
+                appointment_id=request.appointment_id,
+                related_entity_type="appointment_request" if not request.appointment_id else "appointment",
+                related_entity_id=request.appointment_id or request_id,
+            )
+        
         else:
             # Patient cannot perform any other status updates
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status update for patient: {new_status}. Patients can only accept or reject doctor-suggested alternatives."
+                detail=f"Invalid status update for patient: {new_status}. Patients can accept/reject doctor-suggested alternatives or cancel appointments."
             )
 
     updated_request = await appointment_request_crud.get_appointment_request_by_id(
