@@ -235,64 +235,64 @@ async def update_appointment_request(
                     combined_datetime = combined_datetime.replace(tzinfo=request.preferred_date.tzinfo)
 
                 if request.appointment_id:
-                # Approving a reschedule request - update existing appointment
-                await appointment_crud.update_appointment(
-                    session,
-                    request.appointment_id,
-                    appointment_date=combined_datetime,
-                    status="scheduled",
-                    notes=request.notes,
-                )
-                await appointment_request_crud.update_appointment_request(
-                    session,
-                    request_id,
-                    status="confirmed",
-                    preferred_date=combined_datetime,
-                    preferred_time_slot_start=request.preferred_time_slot_start,
-                    suggested_date=None,
-                    suggested_time_slot_start=None,
-                    notes=update_data.notes,
-                )
-                appointment_record_id = request.appointment_id
-                notification_type = "appointment_confirmed"
-                notification_title = "Appointment Reschedule Confirmed"
-                notification_message = f"{doctor_name} approved your reschedule request for {combined_datetime.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}."
-            else:
-                appointment = await appointment_crud.create_appointment(
-                    session,
-                    patient_user_id=request.patient_user_id,
-                    doctor_user_id=request.doctor_user_id,
-                    clinic_id=request.clinic_id,
-                    appointment_date=combined_datetime,
-                    duration_minutes=30,
-                    status="scheduled",
-                    appointment_type="consultation",
-                    reason=request.reason,
-                    notes=request.notes,
-                )
-                await appointment_request_crud.update_appointment_request(
-                    session,
-                    request_id,
-                    status=new_status,
-                    appointment_id=appointment.appointment_id,
-                    notes=update_data.notes,
-                )
-                appointment_record_id = appointment.appointment_id
-                notification_type = "appointment_accepted"
-                notification_title = "Appointment Accepted"
-                notification_message = f"{doctor_name} has accepted your appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}."
+                    # Approving a reschedule request - update existing appointment
+                    await appointment_crud.update_appointment(
+                        session,
+                        request.appointment_id,
+                        appointment_date=combined_datetime,
+                        status="scheduled",
+                        notes=request.notes,
+                    )
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="confirmed",
+                        preferred_date=combined_datetime,
+                        preferred_time_slot_start=request.preferred_time_slot_start,
+                        suggested_date=None,
+                        suggested_time_slot_start=None,
+                        notes=update_data.notes,
+                    )
+                    appointment_record_id = request.appointment_id
+                    notification_type = "appointment_confirmed"
+                    notification_title = "Appointment Reschedule Confirmed"
+                    notification_message = f"{doctor_name} approved your reschedule request for {combined_datetime.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}."
+                else:
+                    appointment = await appointment_crud.create_appointment(
+                        session,
+                        patient_user_id=request.patient_user_id,
+                        doctor_user_id=request.doctor_user_id,
+                        clinic_id=request.clinic_id,
+                        appointment_date=combined_datetime,
+                        duration_minutes=30,
+                        status="scheduled",
+                        appointment_type="consultation",
+                        reason=request.reason,
+                        notes=request.notes,
+                    )
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status=new_status,
+                        appointment_id=appointment.appointment_id,
+                        notes=update_data.notes,
+                    )
+                    appointment_record_id = appointment.appointment_id
+                    notification_type = "appointment_accepted"
+                    notification_title = "Appointment Accepted"
+                    notification_message = f"{doctor_name} has accepted your appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}."
 
-            await notification_crud.create_notification(
-                session,
-                user_id=request.patient_user_id,
-                type=notification_type,
-                title=notification_title,
-                message=notification_message,
-                appointment_request_id=request_id,
-                appointment_id=appointment_record_id,
-                related_entity_type="appointment",
-                related_entity_id=appointment_record_id,
-            )
+                await notification_crud.create_notification(
+                    session,
+                    user_id=request.patient_user_id,
+                    type=notification_type,
+                    title=notification_title,
+                    message=notification_message,
+                    appointment_request_id=request_id,
+                    appointment_id=appointment_record_id,
+                    related_entity_type="appointment",
+                    related_entity_id=appointment_record_id,
+                )
 
         elif new_status == "rejected":
             if request.appointment_id and current_status in {"pending"}:
@@ -371,93 +371,93 @@ async def update_appointment_request(
             )
 
         elif has_patient_permission:
-        if new_status == "patient_accepted_alternative":
-            # Patient accepts the doctor's suggested alternative time
-            if current_status != "doctor_suggested_alternative":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Can only accept alternative when doctor has suggested one. Current status: {current_status}"
-                )
-            
-            if not request.suggested_date or not request.suggested_time_slot_start:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No alternative time was suggested by the doctor"
-                )
-
-            # Combine suggested date and time into datetime
-            suggested_date_naive = request.suggested_date.replace(tzinfo=None) if request.suggested_date.tzinfo else request.suggested_date
-            combined_datetime = datetime.combine(
-                suggested_date_naive.date(),
-                request.suggested_time_slot_start
-            )
-            if request.suggested_date.tzinfo:
-                combined_datetime = combined_datetime.replace(tzinfo=request.suggested_date.tzinfo)
-            
-            if request.appointment_id:
-                # Update existing appointment (reschedule flow)
-                appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
-                if not appointment:
+            if new_status == "patient_accepted_alternative":
+                # Patient accepts the doctor's suggested alternative time
+                if current_status != "doctor_suggested_alternative":
                     raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Appointment with ID {request.appointment_id} not found"
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Can only accept alternative when doctor has suggested one. Current status: {current_status}"
                     )
-                await appointment_crud.update_appointment(
-                    session,
-                    request.appointment_id,
-                    appointment_date=combined_datetime,
-                    status=appointment.status or "scheduled",
-                    notes=request.notes,
-                )
-                final_datetime = combined_datetime
-                await appointment_request_crud.update_appointment_request(
-                    session,
-                    request_id,
-                    status="confirmed",
-                    preferred_date=final_datetime,
-                    preferred_time_slot_start=request.suggested_time_slot_start,
-                    suggested_date=None,
-                    suggested_time_slot_start=None,
-                )
-                appointment_ref_id = request.appointment_id
-            else:
-                # Create appointment with suggested time
-                appointment = await appointment_crud.create_appointment(
-                    session,
-                    patient_user_id=request.patient_user_id,
-                    doctor_user_id=request.doctor_user_id,
-                    clinic_id=request.clinic_id,
-                    appointment_date=combined_datetime,
-                    duration_minutes=30,
-                    status="scheduled",
-                    appointment_type="consultation",
-                    reason=request.reason,
-                    notes=request.notes,
-                )
-                appointment_ref_id = appointment.appointment_id
-                await appointment_request_crud.update_appointment_request(
-                    session,
-                    request_id,
-                    status="confirmed",
-                    appointment_id=appointment_ref_id,
-                    preferred_date=combined_datetime,
-                    preferred_time_slot_start=request.suggested_time_slot_start,
-                    suggested_date=None,
-                    suggested_time_slot_start=None,
-                )
+                
+                if not request.suggested_date or not request.suggested_time_slot_start:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="No alternative time was suggested by the doctor"
+                    )
 
-            # Notify doctor
-            await notification_crud.create_notification(
-                session,
-                user_id=request.doctor_user_id,
-                type="appointment_confirmed",
-                title="Appointment Confirmed",
-                message=f"{patient_name} has accepted your suggested alternative time. Appointment confirmed for {request.suggested_date.strftime('%Y-%m-%d')} at {request.suggested_time_slot_start.strftime('%H:%M')}",
-                appointment_request_id=request_id,
-                appointment_id=appointment_ref_id,
-                related_entity_type="appointment",
-                related_entity_id=appointment_ref_id,
-            )
+                # Combine suggested date and time into datetime
+                suggested_date_naive = request.suggested_date.replace(tzinfo=None) if request.suggested_date.tzinfo else request.suggested_date
+                combined_datetime = datetime.combine(
+                    suggested_date_naive.date(),
+                    request.suggested_time_slot_start
+                )
+                if request.suggested_date.tzinfo:
+                    combined_datetime = combined_datetime.replace(tzinfo=request.suggested_date.tzinfo)
+                
+                if request.appointment_id:
+                    # Update existing appointment (reschedule flow)
+                    appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
+                    if not appointment:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Appointment with ID {request.appointment_id} not found"
+                        )
+                    await appointment_crud.update_appointment(
+                        session,
+                        request.appointment_id,
+                        appointment_date=combined_datetime,
+                        status=appointment.status or "scheduled",
+                        notes=request.notes,
+                    )
+                    final_datetime = combined_datetime
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="confirmed",
+                        preferred_date=final_datetime,
+                        preferred_time_slot_start=request.suggested_time_slot_start,
+                        suggested_date=None,
+                        suggested_time_slot_start=None,
+                    )
+                    appointment_ref_id = request.appointment_id
+                else:
+                    # Create appointment with suggested time
+                    appointment = await appointment_crud.create_appointment(
+                        session,
+                        patient_user_id=request.patient_user_id,
+                        doctor_user_id=request.doctor_user_id,
+                        clinic_id=request.clinic_id,
+                        appointment_date=combined_datetime,
+                        duration_minutes=30,
+                        status="scheduled",
+                        appointment_type="consultation",
+                        reason=request.reason,
+                        notes=request.notes,
+                    )
+                    appointment_ref_id = appointment.appointment_id
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="confirmed",
+                        appointment_id=appointment_ref_id,
+                        preferred_date=combined_datetime,
+                        preferred_time_slot_start=request.suggested_time_slot_start,
+                        suggested_date=None,
+                        suggested_time_slot_start=None,
+                    )
+
+                # Notify doctor
+                await notification_crud.create_notification(
+                    session,
+                    user_id=request.doctor_user_id,
+                    type="appointment_confirmed",
+                    title="Appointment Confirmed",
+                    message=f"{patient_name} has accepted your suggested alternative time. Appointment confirmed for {request.suggested_date.strftime('%Y-%m-%d')} at {request.suggested_time_slot_start.strftime('%H:%M')}",
+                    appointment_request_id=request_id,
+                    appointment_id=appointment_ref_id,
+                    related_entity_type="appointment",
+                    related_entity_id=appointment_ref_id,
+                )
 
         elif new_status == "patient_rejected_alternative":
             # Patient rejects the doctor's suggested alternative time
@@ -561,7 +561,6 @@ async def update_appointment_request(
             
             # If there's a confirmed appointment, also cancel it
             if request.appointment_id:
-                from db.crud import appointment_crud
                 appointment = await appointment_crud.get_appointment_by_id(
                     session,
                     request.appointment_id,
