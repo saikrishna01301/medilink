@@ -144,12 +144,12 @@ export default function PatientDashboardContent() {
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
-      {/* CSS Grid Layout - 3 columns */}
+      {/* CSS Grid Layout - 3 columns, 4 rows */}
       <div 
         className="grid gap-4"
         style={{
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridAutoRows: "minmax(auto, auto)"
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "auto auto auto auto"
         }}
       >
         {/* Row 1 - Tracker Cards */}
@@ -254,7 +254,7 @@ export default function PatientDashboardContent() {
         </div>
 
         {/* Row 2 - Timeline - Spans all 3 columns */}
-        <div className="bg-white rounded-lg shadow p-4" style={{ gridColumn: "1 / 4" }}>
+        <div className="bg-white rounded-lg shadow p-4" style={{ gridRow: "2 / 3", gridColumn: "1 / 4" }}>
           {activities.map((activity, index) => (
             <div key={index} className="relative">
               {/* Date Label */}

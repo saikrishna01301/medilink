@@ -92,109 +92,9 @@ export default function DoctorLayout({ children }: DoctorLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex justify-center" style={{ backgroundColor: "#ECF4F9" }}>
-      <div className="w-full max-w-[1280px] flex flex-col">
-        {/* Header - No white background, no shadow */}
-        <header className="px-6 py-3 w-full">
-          <div className="flex items-center gap-4">
-            {/* Logo */}
-            <div className="flex items-center">
-              <Image
-                src="/logo.svg"
-                alt="MEDIHEALTH"
-                width={190}
-                height={50}
-              />
-            </div>
-
-            {/* Right Side - Search, Icons and Profile */}
-            <div className="flex items-center gap-3 ml-auto">
-              {/* Search Bar - Wider with fully rounded ends */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="rounded-full border border-gray-300 px-4 py-2 pl-10 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
-                  style={{ width: "400px" }}
-                />
-                <svg
-                  className="w-4 h-4 absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-
-              <button className="text-gray-600 hover:text-gray-800">
-                <Image
-                  src="/icons/messages.svg"
-                  alt="Chat"
-                  width={20}
-                  height={20}
-                />
-              </button>
-              <NotificationBell />
-
-              <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
-                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden relative">
-                  {profilePhotoUrl || user?.photo_url ? (
-                    <Image
-                      key={`header-photo-${photoVersion}`}
-                      src={`${profilePhotoUrl || user.photo_url}?v=${photoVersion}&t=${Date.now()}`}
-                      alt="Profile"
-                      width={40}
-                      height={40}
-                      className="w-full h-full object-cover"
-                      unoptimized // Bypass Next.js image optimization for external URLs
-                      onError={(e) => {
-                        // Hide image if it fails to load, show placeholder
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                      onLoad={(e) => {
-                        // Show image when it loads successfully
-                        (e.target as HTMLImageElement).style.display = 'block';
-                      }}
-                    />
-                  ) : null}
-                  {(!profilePhotoUrl && !user?.photo_url) && (
-                    <svg
-                      className="w-6 h-6 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {doctorName}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    General Practitioner G.P.
-                  </p>
-                  <p className="text-xs text-gray-500">since 2004</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Welcome Message Div - Full width, centered text, no background, no shadows */}
-        <div className="w-full text-center py-2">
-          <p className="text-gray-700">Welcome back {doctorName}</p>
-        </div>
-
-        <div className="flex flex-1">
-          {/* Sidebar - 256px */}
-          <aside className="flex flex-col" style={{ width: "256px", backgroundColor: "#ECF4F9", height: "calc(100vh - 73px)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "#ECF4F9" }}>
+      {/* Sidebar - 256px, positioned outside and to the left of 1280px boundary */}
+      <aside className="flex flex-col flex-shrink-0" style={{ width: "256px", backgroundColor: "#ECF4F9", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 10 }}>
             <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
               {/* Overview Section */}
               <div>
@@ -410,10 +310,109 @@ export default function DoctorLayout({ children }: DoctorLayoutProps) {
             </nav>
           </aside>
 
-          {/* Main Content - 1024px */}
-          <div className="flex flex-col" style={{ width: "1024px" }}>
-            {children}
+      {/* Main container - 1280px boundary, centered and offset by sidebar */}
+      <div className="flex flex-col mx-auto" style={{ maxWidth: "1280px", marginLeft: "calc(256px + (100% - 256px - 1280px) / 2)", width: "1280px" }}>
+        {/* Header - No white background, no shadow */}
+        <header className="px-6 py-3 w-full">
+          <div className="flex items-center gap-4">
+            {/* Logo */}
+            <div className="flex items-center">
+              <Image
+                src="/logo.svg"
+                alt="MEDIHEALTH"
+                width={190}
+                height={50}
+              />
+            </div>
+
+            {/* Right Side - Search, Icons and Profile */}
+            <div className="flex items-center gap-3 ml-auto">
+              {/* Search Bar - Wider with fully rounded ends */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="rounded-full border border-gray-300 px-4 py-2 pl-10 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white text-gray-900 placeholder:text-gray-400"
+                  style={{ width: "400px" }}
+                />
+                <svg
+                  className="w-4 h-4 absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+
+              <button className="text-gray-600 hover:text-gray-800">
+                <Image
+                  src="/icons/messages.svg"
+                  alt="Chat"
+                  width={20}
+                  height={20}
+                />
+              </button>
+              <NotificationBell />
+
+              <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
+                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden relative">
+                  {profilePhotoUrl || user?.photo_url ? (
+                    <Image
+                      key={`header-photo-${photoVersion}`}
+                      src={`${profilePhotoUrl || user.photo_url}?v=${photoVersion}&t=${Date.now()}`}
+                      alt="Profile"
+                      width={40}
+                      height={40}
+                      className="w-full h-full object-cover"
+                      unoptimized // Bypass Next.js image optimization for external URLs
+                      onError={(e) => {
+                        // Hide image if it fails to load, show placeholder
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        // Show image when it loads successfully
+                        (e.target as HTMLImageElement).style.display = 'block';
+                      }}
+                    />
+                  ) : null}
+                  {(!profilePhotoUrl && !user?.photo_url) && (
+                    <svg
+                      className="w-6 h-6 text-gray-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {doctorName}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    General Practitioner G.P.
+                  </p>
+                  <p className="text-xs text-gray-500">since 2004</p>
+                </div>
+              </div>
+            </div>
           </div>
+        </header>
+
+        {/* Welcome Message Div - Full width, centered text, no background, no shadows */}
+        <div className="w-full text-center py-2">
+          <p className="text-gray-700">Welcome back {doctorName}</p>
+        </div>
+
+        {/* Main Content - 1280px */}
+        <div className="flex flex-col flex-1" style={{ width: "1280px" }}>
+          {children}
         </div>
       </div>
     </div>

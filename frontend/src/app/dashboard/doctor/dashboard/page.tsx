@@ -35,7 +35,7 @@ export default function DoctorDashboardContent() {
 
   return (
     <main className="flex-1 p-4 overflow-y-auto" style={{ backgroundColor: "#ECF4F9" }}>
-      {/* CSS Grid Layout - 3 columns, 3 rows */}
+      {/* CSS Grid Layout - 3 columns, 4 rows */}
       <div 
         className="grid gap-4"
         style={{
