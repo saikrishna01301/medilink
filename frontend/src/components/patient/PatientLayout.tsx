@@ -40,8 +40,8 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#ECF4F9" }}>
-      {/* Sidebar - 256px, positioned outside and to the left of 1280px boundary */}
-      <aside className="flex flex-col flex-shrink-0" style={{ width: "256px", backgroundColor: "#ECF4F9", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 10 }}>
+      {/* Sidebar - 256px, positioned outside and to the left of 1280px boundary, below header and welcome div (118px from top), aligned with body section */}
+      <aside className="flex flex-col flex-shrink-0" style={{ width: "256px", backgroundColor: "#ECF4F9", height: "calc(100vh - 118px)", position: "fixed", left: "calc((100% - 256px - 1280px) / 2)", top: "118px", zIndex: 10 }}>
             <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
               {/* Overview Section */}
               <div>
