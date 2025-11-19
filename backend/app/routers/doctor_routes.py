@@ -27,7 +27,7 @@ from schemas import (
 from services import verify_access_token, get_storage_service
 from services.google_places import (
     fetch_place_details_by_address,
-    fetch_place_details_by_place_id,
+    # fetch_place_details_by_place_id,  # Not currently used (disabled rating fetch)
 )
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
@@ -99,10 +99,11 @@ async def list_doctors(
     _: Any = Depends(get_authenticated_user),
 ):
     """List all doctors with profile information, including address, distance, and ratings."""
-    from services.google_places import (
-        fetch_place_details_by_address,
-        fetch_place_details_by_place_id,
-    )
+    # DISABLED: Google Places imports for rating fetching
+    # from services.google_places import (
+    #     fetch_place_details_by_address,
+    #     fetch_place_details_by_place_id,
+    # )
     
     doctors = await doctor_crud.list_doctors_with_profiles(
         session,
@@ -112,51 +113,55 @@ async def list_doctors(
         patient_longitude=patient_longitude,
     )
     
-    # Fetch Google ratings for doctors and their clinics
-    for doctor in doctors:
-        # Fetch rating for primary clinic
-        if doctor.get("place_id") and not doctor.get("google_rating"):
-            place_data = await fetch_place_details_by_place_id(doctor["place_id"])
-            if place_data:
-                doctor["google_rating"] = place_data.get("rating")
-                doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
-        elif doctor.get("latitude") and doctor.get("longitude") and not doctor.get("google_rating"):
-            address_parts = [
-                doctor.get("address_line1"),
-                doctor.get("city"),
-                doctor.get("state"),
-                doctor.get("postal_code"),
-            ]
-            address_str = ", ".join([p for p in address_parts if p])
-            if address_str:
-                place_data = await fetch_place_details_by_address(address_str)
-                if place_data:
-                    doctor["google_rating"] = place_data.get("rating")
-                    doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
-                    doctor["place_id"] = place_data.get("place_id")
-        
-        # Fetch ratings for all clinics
-        if doctor.get("clinics"):
-            for clinic in doctor["clinics"]:
-                if clinic.get("place_id") and not clinic.get("google_rating"):
-                    place_data = await fetch_place_details_by_place_id(clinic["place_id"])
-                    if place_data:
-                        clinic["google_rating"] = place_data.get("rating")
-                        clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
-                elif clinic.get("latitude") and clinic.get("longitude") and not clinic.get("google_rating"):
-                    clinic_address_parts = [
-                        clinic.get("address_line1"),
-                        clinic.get("city"),
-                        clinic.get("state"),
-                        clinic.get("postal_code"),
-                    ]
-                    clinic_address_str = ", ".join([p for p in clinic_address_parts if p])
-                    if clinic_address_str:
-                        place_data = await fetch_place_details_by_address(clinic_address_str)
-                        if place_data:
-                            clinic["google_rating"] = place_data.get("rating")
-                            clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
-                            clinic["place_id"] = place_data.get("place_id")
+    # DISABLED: Google ratings fetch to improve performance
+    # This was causing significant slowdowns in doctor search
+    # Uncomment the code below if ratings need to be fetched in the future
+    # 
+    # # Fetch Google ratings for doctors and their clinics
+    # for doctor in doctors:
+    #     # Fetch rating for primary clinic
+    #     if doctor.get("place_id") and not doctor.get("google_rating"):
+    #         place_data = await fetch_place_details_by_place_id(doctor["place_id"])
+    #         if place_data:
+    #             doctor["google_rating"] = place_data.get("rating")
+    #             doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
+    #     elif doctor.get("latitude") and doctor.get("longitude") and not doctor.get("google_rating"):
+    #         address_parts = [
+    #             doctor.get("address_line1"),
+    #             doctor.get("city"),
+    #             doctor.get("state"),
+    #             doctor.get("postal_code"),
+    #         ]
+    #         address_str = ", ".join([p for p in address_parts if p])
+    #         if address_str:
+    #             place_data = await fetch_place_details_by_address(address_str)
+    #             if place_data:
+    #                 doctor["google_rating"] = place_data.get("rating")
+    #                 doctor["google_user_ratings_total"] = place_data.get("user_ratings_total")
+    #                 doctor["place_id"] = place_data.get("place_id")
+    #     
+    #     # Fetch ratings for all clinics
+    #     if doctor.get("clinics"):
+    #         for clinic in doctor["clinics"]:
+    #             if clinic.get("place_id") and not clinic.get("google_rating"):
+    #                 place_data = await fetch_place_details_by_place_id(clinic["place_id"])
+    #                 if place_data:
+    #                     clinic["google_rating"] = place_data.get("rating")
+    #                     clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
+    #             elif clinic.get("latitude") and clinic.get("longitude") and not clinic.get("google_rating"):
+    #                 clinic_address_parts = [
+    #                     clinic.get("address_line1"),
+    #                     clinic.get("city"),
+    #                     clinic.get("state"),
+    #                     clinic.get("postal_code"),
+    #                 ]
+    #                 clinic_address_str = ", ".join([p for p in clinic_address_parts if p])
+    #                 if clinic_address_str:
+    #                     place_data = await fetch_place_details_by_address(clinic_address_str)
+    #                     if place_data:
+    #                         clinic["google_rating"] = place_data.get("rating")
+    #                         clinic["google_user_ratings_total"] = place_data.get("user_ratings_total")
+    #                         clinic["place_id"] = place_data.get("place_id")
     
     return doctors
 
