@@ -89,7 +89,7 @@ async def get_authenticated_user(
     return user
 
 
-@router.get("/", response_model=List[DoctorListItem])
+@router.get("", response_model=List[DoctorListItem])
 async def list_doctors(
     search: Optional[str] = Query(None, description="Search by name, email, or specialty"),
     specialty: Optional[str] = Query(None, description="Filter by specialty"),

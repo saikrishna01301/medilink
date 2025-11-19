@@ -38,7 +38,7 @@ async def get_authenticated_user(
     return user
 
 
-@router.get("/", response_model=List[NotificationRead])
+@router.get("", response_model=List[NotificationRead])
 async def list_notifications(
     status_filter: Optional[str] = Query(None, alias="status"),
     limit: Optional[int] = Query(50, ge=1, le=100),
