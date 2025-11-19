@@ -95,7 +95,7 @@ pipeline {
                 dir(FRONTEND_DIR) {
                     script {
                         echo "Installing npm dependencies..."
-                        sh 'npm install'
+                        sh 'npm ci'
                     }
                 }
             }
