@@ -12,14 +12,6 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Debug: Log component render
-  console.log("PatientAppointmentRequestCard rendered:", {
-    request_id: request.request_id,
-    status: request.status,
-    has_suggested_date: !!request.suggested_date,
-    has_suggested_time: !!request.suggested_time_slot_start,
-  });
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -39,38 +31,35 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
   const handleAcceptAlternative = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("=== ACCEPT BUTTON CLICKED ===");
-    console.log("Request object:", request);
-    console.log("Request ID:", request.request_id);
-    console.log("Current status:", request.status);
     
     setIsProcessing(true);
     setError(null);
+    
     try {
-      console.log("Calling API to accept alternative time...");
+      console.log("=== ACCEPT ALTERNATIVE ===");
+      console.log("Request ID:", request.request_id);
+      console.log("Current status:", request.status);
+      
       const updated = await appointmentRequestAPI.update(request.request_id, {
         status: "patient_accepted_alternative",
       });
-      console.log("Update successful! New status:", updated.status);
-      console.log("Updated request:", updated);
+      
+      console.log("API Response - Updated request:", updated);
+      console.log("New status from API:", updated.status);
+      
       setIsProcessing(false);
-      // Force immediate refresh
-      console.log("Refreshing request list immediately...");
+      
+      // Refresh immediately - the backend should have updated by now
+      console.log("Refreshing request list...");
       onUpdate();
     } catch (err) {
-      console.error("=== ERROR ACCEPTING ALTERNATIVE ===");
-      console.error("Error object:", err);
-      console.error("Error type:", typeof err);
-      console.error("Error instanceof APIError:", err instanceof APIError);
+      console.error("Error accepting alternative:", err);
       setIsProcessing(false);
       if (err instanceof APIError) {
-        console.error("APIError detail:", err.detail);
         setError(err.detail || "Failed to accept alternative time");
       } else if (err instanceof Error) {
-        console.error("Error message:", err.message);
         setError(err.message || "Failed to accept alternative time");
       } else {
-        console.error("Unknown error:", JSON.stringify(err));
         setError("Failed to accept alternative time. Please try again.");
       }
     }
@@ -79,42 +68,39 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
   const handleRejectAlternative = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("=== REJECT BUTTON CLICKED ===");
-    console.log("Request object:", request);
-    console.log("Request ID:", request.request_id);
-    console.log("Current status:", request.status);
     
     if (!confirm("Are you sure you want to reject the doctor's suggested alternative time?")) {
-      console.log("User cancelled rejection");
       return;
     }
+    
     setIsProcessing(true);
     setError(null);
+    
     try {
-      console.log("Calling API to reject alternative time...");
+      console.log("=== REJECT ALTERNATIVE ===");
+      console.log("Request ID:", request.request_id);
+      console.log("Current status:", request.status);
+      
       const updated = await appointmentRequestAPI.update(request.request_id, {
         status: "patient_rejected_alternative",
       });
-      console.log("Update successful! New status:", updated.status);
-      console.log("Updated request:", updated);
+      
+      console.log("API Response - Updated request:", updated);
+      console.log("New status from API:", updated.status);
+      
       setIsProcessing(false);
-      // Force immediate refresh
-      console.log("Refreshing request list immediately...");
+      
+      // Refresh immediately - the backend should have updated by now
+      console.log("Refreshing request list...");
       onUpdate();
     } catch (err) {
-      console.error("=== ERROR REJECTING ALTERNATIVE ===");
-      console.error("Error object:", err);
-      console.error("Error type:", typeof err);
-      console.error("Error instanceof APIError:", err instanceof APIError);
+      console.error("Error rejecting alternative:", err);
       setIsProcessing(false);
       if (err instanceof APIError) {
-        console.error("APIError detail:", err.detail);
         setError(err.detail || "Failed to reject alternative time");
       } else if (err instanceof Error) {
-        console.error("Error message:", err.message);
         setError(err.message || "Failed to reject alternative time");
       } else {
-        console.error("Unknown error:", JSON.stringify(err));
         setError("Failed to reject alternative time. Please try again.");
       }
     }
@@ -126,8 +112,6 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
       accepted: { label: "Accepted", className: "bg-green-100 text-green-700" },
       rejected: { label: "Rejected", className: "bg-red-100 text-red-700" },
       doctor_suggested_alternative: { label: "Alternative Suggested", className: "bg-blue-100 text-blue-700" },
-      patient_accepted_alternative: { label: "Alternative Accepted", className: "bg-green-100 text-green-700" },
-      patient_rejected_alternative: { label: "Alternative Rejected", className: "bg-red-100 text-red-700" },
       confirmed: { label: "Confirmed", className: "bg-green-100 text-green-700" },
       cancelled: { label: "Cancelled", className: "bg-gray-100 text-gray-700" },
     };
@@ -138,6 +122,10 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
       </span>
     );
   };
+
+  const isAlternativeSuggested = request.status === "doctor_suggested_alternative" && 
+                                  request.suggested_date && 
+                                  request.suggested_time_slot_start;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
@@ -178,7 +166,8 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
         </div>
       </div>
 
-      {request.status === "doctor_suggested_alternative" && request.suggested_date && request.suggested_time_slot_start && (
+      {/* Show alternative suggestion and action buttons */}
+      {isAlternativeSuggested && (
         <div className="border-t border-gray-200 pt-3 space-y-3">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-sm font-medium text-blue-900 mb-1">Doctor Suggested Alternative Time:</p>
@@ -209,6 +198,7 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
         </div>
       )}
 
+      {/* Status messages */}
       {request.status === "accepted" && (
         <div className="border-t border-gray-200 pt-3">
           <p className="text-sm text-green-600 font-medium">✓ Appointment Accepted by Doctor</p>
@@ -224,23 +214,14 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
         </div>
       )}
 
-      {request.status === "patient_accepted_alternative" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-green-600 font-medium">✓ Alternative Time Accepted</p>
-          <p className="text-xs text-gray-500 mt-1">Appointment is being confirmed...</p>
-        </div>
-      )}
-
-      {request.status === "patient_rejected_alternative" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-red-600 font-medium">✗ Alternative Time Rejected</p>
-          <p className="text-xs text-gray-500 mt-1">The appointment request remains pending.</p>
-        </div>
-      )}
-
       {request.status === "confirmed" && (
         <div className="border-t border-gray-200 pt-3">
           <p className="text-sm text-green-600 font-medium">✓ Appointment Confirmed</p>
+          {request.suggested_date && request.suggested_time_slot_start && (
+            <p className="text-xs text-gray-600 mt-1">
+              Confirmed for {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
+            </p>
+          )}
           {request.appointment_id && (
             <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
           )}
@@ -256,4 +237,3 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
     </div>
   );
 }
-

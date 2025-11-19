@@ -209,10 +209,7 @@ async def update_appointment_request(
     doctor_name = f"{doctor.first_name} {doctor.last_name}".strip() if doctor else "Doctor"
     patient_name = f"{patient.first_name} {patient.last_name}".strip() if patient else "Patient"
 
-    print(f"DEBUG UPDATE: new_status={new_status}, current_status={request.status}, is_doctor={is_doctor}, is_patient={is_patient}")
-    print(f"DEBUG UPDATE: request_id={request_id}, patient_user_id={request.patient_user_id}, doctor_user_id={request.doctor_user_id}")
-
-    if is_doctor:
+    if has_doctor_permission:
         if new_status == "accepted":
             from datetime import timezone
             preferred_date_naive = request.preferred_date.replace(tzinfo=None) if request.preferred_date.tzinfo else request.preferred_date
@@ -300,24 +297,27 @@ async def update_appointment_request(
                 related_entity_id=request_id,
             )
 
-    elif is_patient:
+    elif has_patient_permission:
+        # Patient can only accept or reject doctor-suggested alternatives
         # Convert status to string for comparison (handles enum values)
-        # If it's an enum, get its value; otherwise convert to string
-        if hasattr(request.status, 'value'):
-            current_status = request.status.value
-        else:
-            current_status = str(request.status) if request.status else ""
-        current_status = current_status.strip() if current_status else ""
-        print(f"DEBUG PATIENT: Checking patient action - new_status={new_status}, current_status={current_status}, request.status type={type(request.status)}")
+        current_status = str(request.status.value) if hasattr(request.status, 'value') else str(request.status) if request.status else ""
+        current_status = current_status.strip()
         
-        if new_status == "patient_accepted_alternative" and current_status == "doctor_suggested_alternative":
-            print(f"DEBUG PATIENT: Processing accept alternative")
+        if new_status == "patient_accepted_alternative":
+            # Patient accepts the doctor's suggested alternative time
+            if current_status != "doctor_suggested_alternative":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Can only accept alternative when doctor has suggested one"
+                )
+            
             if not request.suggested_date or not request.suggested_time_slot_start:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="No alternative time was suggested by the doctor"
                 )
 
+            # Combine suggested date and time into datetime
             suggested_date_naive = request.suggested_date.replace(tzinfo=None) if request.suggested_date.tzinfo else request.suggested_date
             combined_datetime = datetime.combine(
                 suggested_date_naive.date(),
@@ -325,6 +325,8 @@ async def update_appointment_request(
             )
             if request.suggested_date.tzinfo:
                 combined_datetime = combined_datetime.replace(tzinfo=request.suggested_date.tzinfo)
+            
+            # Create appointment with suggested time
             appointment = await appointment_crud.create_appointment(
                 session,
                 patient_user_id=request.patient_user_id,
@@ -337,6 +339,8 @@ async def update_appointment_request(
                 reason=request.reason,
                 notes=request.notes,
             )
+            
+            # Update request status to "confirmed" and link appointment
             await appointment_request_crud.update_appointment_request(
                 session,
                 request_id,
@@ -344,6 +348,7 @@ async def update_appointment_request(
                 appointment_id=appointment.appointment_id,
             )
 
+            # Notify doctor
             await notification_crud.create_notification(
                 session,
                 user_id=request.doctor_user_id,
@@ -356,8 +361,15 @@ async def update_appointment_request(
                 related_entity_id=appointment.appointment_id,
             )
 
-        elif new_status == "patient_rejected_alternative" and current_status == "doctor_suggested_alternative":
-            print(f"DEBUG PATIENT: Processing reject alternative")
+        elif new_status == "patient_rejected_alternative":
+            # Patient rejects the doctor's suggested alternative time
+            if current_status != "doctor_suggested_alternative":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Can only reject alternative when doctor has suggested one"
+                )
+            
+            # Update request status to "cancelled"
             await appointment_request_crud.update_appointment_request(
                 session,
                 request_id,
@@ -365,6 +377,7 @@ async def update_appointment_request(
                 notes=update_data.notes,
             )
 
+            # Notify doctor
             await notification_crud.create_notification(
                 session,
                 user_id=request.doctor_user_id,
@@ -376,20 +389,25 @@ async def update_appointment_request(
                 related_entity_id=request_id,
             )
         
-        elif new_status:
-            # Handle any other status updates from patient
-            print(f"DEBUG PATIENT: Updating status to {new_status}")
-            await appointment_request_crud.update_appointment_request(
-                session,
-                request_id,
-                status=new_status,
-                notes=update_data.notes,
+        else:
+            # Patient cannot perform any other status updates
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status update for patient: {new_status}. Patients can only accept or reject doctor-suggested alternatives."
             )
 
     updated_request = await appointment_request_crud.get_appointment_request_by_id(
         session,
         request_id,
     )
-    print(f"DEBUG UPDATE: Returning updated request with status={updated_request.status if updated_request else 'None'}")
+    
+    if not updated_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment request not found after update"
+        )
+    
+    # The Pydantic schema should handle enum conversion automatically,
+    # but ensure we're returning the correct format
     return updated_request
 

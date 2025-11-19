@@ -16,10 +16,16 @@ export default function AppointmentsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      console.log("Fetching appointment requests...");
+      console.log("=== FETCHING APPOINTMENT REQUESTS ===");
+      console.log("Status filter:", statusFilter || "none");
       const data = await appointmentRequestAPI.listForPatient(statusFilter || undefined);
-      console.log("Fetched requests:", data);
-      console.log("Request statuses:", data.map(r => ({ id: r.request_id, status: r.status })));
+      console.log("Fetched requests count:", data.length);
+      console.log("Request statuses:", data.map(r => ({ 
+        id: r.request_id, 
+        status: r.status,
+        suggested_date: r.suggested_date,
+        suggested_time: r.suggested_time_slot_start
+      })));
       setRequests(data);
     } catch (err) {
       console.error("Error fetching requests:", err);
@@ -75,9 +81,8 @@ export default function AppointmentsPage() {
               <option value="accepted">Accepted</option>
               <option value="rejected">Rejected</option>
               <option value="doctor_suggested_alternative">Alternative Suggested</option>
-              <option value="patient_accepted_alternative">Alternative Accepted</option>
-              <option value="patient_rejected_alternative">Alternative Rejected</option>
               <option value="confirmed">Confirmed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -98,7 +103,7 @@ export default function AppointmentsPage() {
           <div className="space-y-4">
             {requests.map((request) => (
               <PatientAppointmentRequestCard
-                key={request.request_id}
+                key={`${request.request_id}-${request.status}-${request.updated_at}`}
                 request={request}
                 onUpdate={fetchRequests}
               />
