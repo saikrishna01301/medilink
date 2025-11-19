@@ -8,7 +8,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
-from db.crud import auth_crud, appointment_crud
+from db.crud import auth_crud, appointment_crud, doctor_crud
+from db.models import User, DoctorProfile
+from sqlalchemy import select
 from schemas.appointment_schema import AppointmentCreate
 from services import (
     fetch_holiday_events,
@@ -54,7 +56,7 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
         ) from exc
 
 
-def _serialize_appointment(model) -> dict:
+async def _serialize_appointment(model, session: AsyncSession) -> dict:
     start = model.appointment_date
     duration = model.duration_minutes or 0
     if duration <= 0:
@@ -64,6 +66,21 @@ def _serialize_appointment(model) -> dict:
     description = model.notes
     category = model.appointment_type
     is_all_day = model.status == "all-day" or duration >= 1440
+
+    doctor_info = None
+    if model.doctor_user_id:
+        doctor_user = await session.scalar(
+            select(User).where(User.id == model.doctor_user_id)
+        )
+        if doctor_user:
+            doctor_profile = await doctor_crud.get_doctor_profile(model.doctor_user_id, session)
+            specialty = doctor_profile.specialty if doctor_profile else None
+            doctor_name = f"{doctor_user.first_name} {doctor_user.last_name}".strip()
+            doctor_info = {
+                "id": doctor_user.id,
+                "name": doctor_name,
+                "specialty": specialty or "General Practice",
+            }
 
     return {
         "id": model.appointment_id,
@@ -81,6 +98,7 @@ def _serialize_appointment(model) -> dict:
         "is_all_day": is_all_day,
         "created_at": model.created_at.isoformat() if model.created_at else None,
         "updated_at": model.updated_at.isoformat() if model.updated_at else None,
+        "doctor": doctor_info,
     }
 
 
@@ -115,7 +133,7 @@ async def list_calendar_events(
     )
 
     response: dict = {
-        "appointments": [_serialize_appointment(item) for item in appointments],
+        "appointments": [await _serialize_appointment(item, session) for item in appointments],
         "holidays": [],
         "service_events": [],
     }
@@ -184,5 +202,5 @@ async def create_calendar_event(
         notes=payload.description,
     )
 
-    return _serialize_appointment(created)
+    return await _serialize_appointment(created, session)
 

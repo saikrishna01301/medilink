@@ -6,12 +6,15 @@ import {
   calendarAPI,
   CalendarEventsResponse,
   Appointment,
+  appointmentRequestAPI,
+  AppointmentRequest,
 } from "@/services/api";
 import {
   formatDateKey,
   getEventDateKey,
   getMonthGridBounds,
 } from "@/utils/calendar";
+import { useAuth } from "@/contexts/AuthContext";
 
 const weekdayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -22,6 +25,7 @@ const colorPalette: Record<string, string> = {
   default: "#10B981",
   holiday: "#F43F5E",
   shared: "#0EA5E9",
+  pending: "#EAB308", // Yellow for pending appointments
 };
 
 type EventDot = {
@@ -60,7 +64,8 @@ const getEventCategory = (event: Appointment): EventDot => {
 
 const buildCalendarDays = (
   anchor: Date,
-  events: CalendarEventsResponse | null
+  events: CalendarEventsResponse | null,
+  pendingRequests: AppointmentRequest[] = []
 ): CalendarDay[] => {
   const { gridStart, gridEnd, firstOfMonth, lastOfMonth } = getMonthGridBounds(anchor);
 
@@ -100,6 +105,24 @@ const buildCalendarDays = (
     }
   }
 
+  // Add pending appointment requests as yellow dots on the requested date
+  for (const request of pendingRequests) {
+    // Use preferred_date (the requested date) for pending appointments
+    const dateStr = request.preferred_date;
+    if (dateStr) {
+      try {
+        // Parse the date string (format: YYYY-MM-DD)
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          const key = formatDateKey(date);
+          addEvent(key, { color: colorPalette.pending, label: "Pending Appointment" });
+        }
+      } catch (error) {
+        console.error("Error parsing appointment request date:", error);
+      }
+    }
+  }
+
   while (dayCursor <= gridEnd) {
     const key = formatDateKey(dayCursor);
     days.push({
@@ -128,8 +151,10 @@ const formatRangeLabel = (events: CalendarEventsResponse | null) => {
 };
 
 export default function CalendarWidget() {
+  const { user } = useAuth();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventsResponse | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<AppointmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,9 +192,30 @@ export default function CalendarWidget() {
     fetchMonthEvents();
   }, [firstOfMonth.getTime(), lastOfMonth.getTime()]);
 
+  useEffect(() => {
+    const fetchPendingRequests = async () => {
+      if (!user) return;
+      
+      try {
+        let requests: AppointmentRequest[] = [];
+        if (user.role === "patient") {
+          requests = await appointmentRequestAPI.listForPatient("pending");
+        } else if (user.role === "doctor") {
+          requests = await appointmentRequestAPI.listForDoctor("pending");
+        }
+        setPendingRequests(requests);
+      } catch (err) {
+        console.error("Error fetching pending appointment requests:", err);
+        // Don't set error state here, just log it - pending requests are optional
+      }
+    };
+
+    fetchPendingRequests();
+  }, [user, firstOfMonth.getTime(), lastOfMonth.getTime()]);
+
   const days = useMemo(
-    () => buildCalendarDays(anchorDate, events),
-    [anchorDate, events]
+    () => buildCalendarDays(anchorDate, events, pendingRequests),
+    [anchorDate, events, pendingRequests]
   );
 
   const monthLabel = useMemo(

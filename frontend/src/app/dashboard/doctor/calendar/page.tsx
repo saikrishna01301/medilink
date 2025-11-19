@@ -9,7 +9,10 @@ import {
   Appointment,
   HolidayEvent,
   CreateAppointmentRequest,
+  appointmentRequestAPI,
+  AppointmentRequest,
 } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   atEndOfDay,
   atStartOfDay,
@@ -40,11 +43,13 @@ type CalendarDay = {
   appointments: Appointment[];
   holidays: HolidayEvent[];
   shared: HolidayEvent[];
+  pendingCount: number;
 };
 
 const buildMatrix = (
   anchor: Date,
-  events: CalendarEventsResponse | null
+  events: CalendarEventsResponse | null,
+  pendingRequests: AppointmentRequest[] = []
 ): CalendarDay[] => {
   const { firstOfMonth, lastOfMonth, gridStart, gridEnd } =
     getMonthGridBounds(anchor);
@@ -52,12 +57,12 @@ const buildMatrix = (
   const cursor = new Date(gridStart);
   const eventMap = new Map<
     string,
-    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[] }
+    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[]; pendingCount: number }
   >();
 
   const ensureBucket = (key: string) => {
     if (!eventMap.has(key)) {
-      eventMap.set(key, { appointments: [], holidays: [], shared: [] });
+      eventMap.set(key, { appointments: [], holidays: [], shared: [], pendingCount: 0 });
     }
     return eventMap.get(key)!;
   };
@@ -83,16 +88,33 @@ const buildMatrix = (
     }
   }
 
+  // Add pending appointment requests
+  for (const request of pendingRequests) {
+    const dateStr = request.preferred_date;
+    if (dateStr) {
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          const key = formatDateKey(date);
+          ensureBucket(key).pendingCount += 1;
+        }
+      } catch (error) {
+        console.error("Error parsing appointment request date:", error);
+      }
+    }
+  }
+
   while (cursor <= gridEnd) {
     const key = formatDateKey(cursor);
     const bucket =
-      eventMap.get(key) ?? { appointments: [], holidays: [], shared: [] };
+      eventMap.get(key) ?? { appointments: [], holidays: [], shared: [], pendingCount: 0 };
     days.push({
       date: new Date(cursor),
       inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
       appointments: bucket.appointments,
       holidays: bucket.holidays,
       shared: bucket.shared,
+      pendingCount: bucket.pendingCount,
     });
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -164,8 +186,10 @@ const formatHolidayTime = (event: HolidayEvent) => {
 };
 
 export default function DoctorCalendarPage() {
+  const { user } = useAuth();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventsResponse | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<AppointmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeHolidays, setIncludeHolidays] = useState(true);
@@ -212,9 +236,25 @@ export default function DoctorCalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorDate, includeHolidays]);
 
+  useEffect(() => {
+    const fetchPendingRequests = async () => {
+      if (!user || user.role !== "doctor") return;
+      
+      try {
+        const requests = await appointmentRequestAPI.listForDoctor("pending");
+        setPendingRequests(requests);
+      } catch (err) {
+        console.error("Error fetching pending appointment requests:", err);
+        // Don't set error state here, just log it - pending requests are optional
+      }
+    };
+
+    fetchPendingRequests();
+  }, [user, anchorDate]);
+
   const matrix = useMemo(
-    () => buildMatrix(anchorDate, events),
-    [anchorDate, events]
+    () => buildMatrix(anchorDate, events, pendingRequests),
+    [anchorDate, events, pendingRequests]
   );
 
   const upcomingEvents = useMemo(() => {
@@ -659,6 +699,13 @@ export default function DoctorCalendarPage() {
                         title={dot.label}
                       />
                     ))}
+                    {day.pendingCount > 0 && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: "#EAB308" }}
+                        title={`${day.pendingCount} pending appointment${day.pendingCount > 1 ? 's' : ''}`}
+                      />
+                    )}
                     {day.holidays.length > 0 && (
                       <span
                         className="h-2.5 w-2.5 rounded-full"

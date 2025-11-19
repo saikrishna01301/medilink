@@ -50,6 +50,13 @@ class config(BaseSettings):
 
     # Google Maps API Configuration
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    
+    # Redis Configuration
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD", None)
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_URL: Optional[str] = os.getenv("REDIS_URL", None)  # Overrides host/port if provided
 
 
 config = config()

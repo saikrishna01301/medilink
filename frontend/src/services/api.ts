@@ -472,6 +472,12 @@ export interface DoctorSocialLinkUpdatePayload {
   display_order?: number;
 }
 
+export interface AppointmentDoctor {
+  id: number;
+  name: string;
+  specialty: string;
+}
+
 export interface Appointment {
   id: number;
   patient_user_id: number | null;
@@ -488,6 +494,7 @@ export interface Appointment {
   is_all_day: boolean;
   created_at?: string | null;
   updated_at?: string | null;
+  doctor?: AppointmentDoctor | null;
 }
 
 export interface HolidayEvent {
@@ -800,6 +807,26 @@ export const calendarAPI = {
       body: JSON.stringify(payload),
       defaultError: "Failed to create appointment",
     });
+  },
+
+  getUpcomingAppointments: async (limit: number = 5): Promise<Appointment[]> => {
+    const now = new Date();
+    const timeMin = now.toISOString();
+    // Get appointments for the next 3 months
+    const timeMax = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const response = await calendarAPI.listEvents({
+      timeMin,
+      timeMax,
+      includeHolidays: false,
+      maxResults: limit,
+    });
+
+    // Filter to only scheduled/confirmed appointments and sort by start_time
+    return response.appointments
+      .filter((apt) => apt.status === "scheduled" || apt.status === "confirmed")
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+      .slice(0, limit);
   },
 };
 

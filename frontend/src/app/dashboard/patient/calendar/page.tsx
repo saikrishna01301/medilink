@@ -8,7 +8,10 @@ import {
   CalendarEventsResponse,
   Appointment,
   HolidayEvent,
+  appointmentRequestAPI,
+  AppointmentRequest,
 } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   atEndOfDay,
   atStartOfDay,
@@ -28,11 +31,13 @@ type CalendarDay = {
   appointments: Appointment[];
   holidays: HolidayEvent[];
   shared: HolidayEvent[];
+  pendingCount: number;
 };
 
 const buildMatrix = (
   anchor: Date,
-  events: CalendarEventsResponse | null
+  events: CalendarEventsResponse | null,
+  pendingRequests: AppointmentRequest[] = []
 ): CalendarDay[] => {
   const { firstOfMonth, lastOfMonth, gridStart, gridEnd } =
     getMonthGridBounds(anchor);
@@ -40,12 +45,12 @@ const buildMatrix = (
   const cursor = new Date(gridStart);
   const bucket = new Map<
     string,
-    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[] }
+    { appointments: Appointment[]; holidays: HolidayEvent[]; shared: HolidayEvent[]; pendingCount: number }
   >();
 
   const ensureBucket = (key: string) => {
     if (!bucket.has(key)) {
-      bucket.set(key, { appointments: [], holidays: [], shared: [] });
+      bucket.set(key, { appointments: [], holidays: [], shared: [], pendingCount: 0 });
     }
     return bucket.get(key)!;
   };
@@ -65,16 +70,33 @@ const buildMatrix = (
     if (key) ensureBucket(key).shared.push(shared);
   }
 
+  // Add pending appointment requests
+  for (const request of pendingRequests) {
+    const dateStr = request.preferred_date;
+    if (dateStr) {
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          const key = formatDateKey(date);
+          ensureBucket(key).pendingCount += 1;
+        }
+      } catch (error) {
+        console.error("Error parsing appointment request date:", error);
+      }
+    }
+  }
+
   while (cursor <= gridEnd) {
     const key = formatDateKey(cursor);
     const entry =
-      bucket.get(key) ?? { appointments: [], holidays: [], shared: [] };
+      bucket.get(key) ?? { appointments: [], holidays: [], shared: [], pendingCount: 0 };
     days.push({
       date: new Date(cursor),
       inCurrentMonth: cursor >= firstOfMonth && cursor <= lastOfMonth,
       appointments: entry.appointments,
       holidays: entry.holidays,
       shared: entry.shared,
+      pendingCount: entry.pendingCount,
     });
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -111,8 +133,10 @@ const formatHolidayTime = (event: HolidayEvent) => {
 };
 
 export default function PatientCalendarPage() {
+  const { user } = useAuth();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventsResponse | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<AppointmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeHolidays, setIncludeHolidays] = useState(true);
@@ -148,9 +172,25 @@ export default function PatientCalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorDate, includeHolidays]);
 
+  useEffect(() => {
+    const fetchPendingRequests = async () => {
+      if (!user || user.role !== "patient") return;
+      
+      try {
+        const requests = await appointmentRequestAPI.listForPatient("pending");
+        setPendingRequests(requests);
+      } catch (err) {
+        console.error("Error fetching pending appointment requests:", err);
+        // Don't set error state here, just log it - pending requests are optional
+      }
+    };
+
+    fetchPendingRequests();
+  }, [user, anchorDate]);
+
   const matrix = useMemo(
-    () => buildMatrix(anchorDate, events),
-    [anchorDate, events]
+    () => buildMatrix(anchorDate, events, pendingRequests),
+    [anchorDate, events, pendingRequests]
   );
 
   const upcomingVisits = useMemo(() => {
@@ -254,6 +294,15 @@ export default function PatientCalendarPage() {
                       </span>
                     )}
                   </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {day.pendingCount > 0 && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: "#EAB308" }}
+                        title={`${day.pendingCount} pending appointment${day.pendingCount > 1 ? 's' : ''}`}
+                      />
+                    )}
+                  </div>
                   <div className="mt-3 space-y-1.5">
                     {day.appointments.slice(0, 3).map((event) => (
                       <div
@@ -312,7 +361,7 @@ export default function PatientCalendarPage() {
                   className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                 >
                   <div className="font-semibold text-slate-900">
-                    {event.summary || "Untitled appointment"}
+                    {event.title || "Untitled appointment"}
                   </div>
                   <div className="text-xs text-slate-500">
                     {start

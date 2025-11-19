@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { calendarAPI, Appointment } from "@/services/api";
 
 type ActivityType = "appointment" | "share" | "order" | "therapy" | "chore" | "collect";
 
@@ -17,6 +19,57 @@ interface Activity {
 
 export default function PatientDashboardContent() {
   const { user: _user } = useAuth();
+  const [upcomingAppointment, setUpcomingAppointment] = useState<Appointment | null>(null);
+  const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
+
+  useEffect(() => {
+    const fetchUpcomingAppointment = async () => {
+      try {
+        setIsLoadingAppointment(true);
+        const appointments = await calendarAPI.getUpcomingAppointments(1);
+        if (appointments.length > 0) {
+          setUpcomingAppointment(appointments[0]);
+        } else {
+          setUpcomingAppointment(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch upcoming appointments:", error);
+        setUpcomingAppointment(null);
+      } finally {
+        setIsLoadingAppointment(false);
+      }
+    };
+
+    fetchUpcomingAppointment();
+  }, []);
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const dayName = days[date.getDay()];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    
+    return `${dayName} ${month} ${day} ${year}`;
+  };
+
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, "0");
+    
+    // Get timezone abbreviation (simplified - shows EST/EDT or local timezone)
+    const timezone = Intl.DateTimeFormat("en", { timeZoneName: "short" }).formatToParts(date)
+      .find(part => part.type === "timeZoneName")?.value || "";
+    
+    return `${displayHours}:${displayMinutes} ${ampm} ${timezone}`;
+  };
 
   const activities: Activity[] = [
     {
@@ -166,20 +219,42 @@ export default function PatientDashboardContent() {
                 </button>
               </h3>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Doctor</span>
-                <span className="text-gray-500">Appointment</span>
+            {isLoadingAppointment ? (
+              <div className="space-y-2">
+                <div className="flex justify-center items-center py-4">
+                  <div className="text-gray-400 text-xs">Loading...</div>
+                </div>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="font-medium text-gray-900">Dr. Orange Cat | GP</span>
-                <span className="font-medium text-gray-900">Thursday Oct 16 2025</span>
+            ) : upcomingAppointment ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Doctor</span>
+                  <span className="text-gray-500">Appointment</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-gray-900">
+                    {upcomingAppointment.doctor 
+                      ? `Dr. ${upcomingAppointment.doctor.name} | ${upcomingAppointment.doctor.specialty}`
+                      : "Doctor"}
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {formatDate(upcomingAppointment.start_time)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Physician</span>
+                  <span className="text-gray-500">
+                    {formatTime(upcomingAppointment.start_time)}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Physician</span>
-                <span className="text-gray-500">16:25 EST</span>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-center items-center py-4">
+                  <div className="text-gray-400 text-xs">No new appointments</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
