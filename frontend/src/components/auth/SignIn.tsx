@@ -104,7 +104,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
         }
       }
       
-      // For doctors, fetch profile to get photo_url
+      // For doctors/patients, fetch profile to get photo_url
       let photoUrl: string | undefined = undefined;
       if (userData.role.toLowerCase() === "doctor") {
         try {
@@ -117,6 +117,16 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
         } catch (profileError) {
           console.error("Failed to fetch doctor profile:", profileError);
           // Continue without photo_url
+        }
+      } else if (userData.role.toLowerCase() === "patient") {
+        try {
+          const { patientAPI } = await import("@/services/api");
+          const profileData = await patientAPI.getProfile();
+          if (profileData.profile?.photo_url) {
+            photoUrl = profileData.profile.photo_url;
+          }
+        } catch (profileError) {
+          console.error("Failed to fetch patient profile:", profileError);
         }
       }
       
@@ -187,7 +197,7 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
       try {
         const userData = await authAPI.getCurrentUser();
         
-        // For doctors, fetch profile to get photo_url
+        // For doctors/patients, fetch profile to get photo_url
         let photoUrl: string | undefined = undefined;
         if (userData.role.toLowerCase() === "doctor") {
           try {
@@ -199,6 +209,16 @@ const SignIn: React.FC<SignInProps> = ({ selectedRole, onSuccess, onSwitchToSign
             }
           } catch (profileError) {
             console.error("Failed to fetch doctor profile:", profileError);
+          }
+        } else if (userData.role.toLowerCase() === "patient") {
+          try {
+            const { patientAPI } = await import("@/services/api");
+            const profileData = await patientAPI.getProfile();
+            if (profileData.profile?.photo_url) {
+              photoUrl = profileData.profile.photo_url;
+            }
+          } catch (profileError) {
+            console.error("Failed to fetch patient profile:", profileError);
           }
         }
         

@@ -15,6 +15,10 @@ export default function AppointmentRequestCard({ request, onUpdate }: Appointmen
   const [suggestedStartTime, setSuggestedStartTime] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const isReschedulePending = request.status === "pending" && Boolean(request.appointment_id);
+  const acceptLabel = isReschedulePending ? "Approve Reschedule" : "Accept";
+  const rejectLabel = isReschedulePending ? "Reject Request" : "Reject";
+  const canSuggestAlternative = request.is_flexible || Boolean(request.appointment_id);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -141,6 +145,11 @@ export default function AppointmentRequestCard({ request, onUpdate }: Appointmen
               <p className="text-sm text-gray-600">{request.reason}</p>
             </div>
           )}
+          {isReschedulePending && (
+            <p className="mt-2 text-xs font-medium text-yellow-700">
+              Patient is requesting to reschedule this confirmed appointment.
+            </p>
+          )}
         </div>
       </div>
 
@@ -166,9 +175,9 @@ export default function AppointmentRequestCard({ request, onUpdate }: Appointmen
                 disabled={isProcessing}
                 className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isProcessing ? "Processing..." : "Accept"}
+                {isProcessing ? "Processing..." : acceptLabel}
               </button>
-              {request.is_flexible && (
+              {canSuggestAlternative && (
                 <button
                   onClick={() => setShowSuggestAlternative(true)}
                   disabled={isProcessing}
@@ -182,7 +191,7 @@ export default function AppointmentRequestCard({ request, onUpdate }: Appointmen
                 disabled={isProcessing}
                 className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isProcessing ? "Processing..." : "Reject"}
+                {isProcessing ? "Processing..." : rejectLabel}
               </button>
             </div>
           ) : (

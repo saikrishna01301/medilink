@@ -1,20 +1,54 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import NotificationBell from "@/components/common/NotificationBell";
 import Link from "next/link";
+import { patientAPI } from "@/services/api";
 
 interface PatientLayoutProps {
   children: React.ReactNode;
 }
 
 export default function PatientLayout({ children }: PatientLayoutProps) {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, setUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [photoVersion, setPhotoVersion] = useState(0);
+
+  useEffect(() => {
+    const fetchProfilePhoto = async () => {
+      if (user?.role === "patient" && isAuthenticated && user.id) {
+        try {
+          const profileData = await patientAPI.getProfile();
+          const photoUrl = profileData.profile?.photo_url ?? null;
+          setProfilePhotoUrl(photoUrl);
+          setPhotoVersion((prev) => prev + 1);
+          if (photoUrl && user.photo_url !== photoUrl) {
+            setUser({ ...user, photo_url: photoUrl });
+          } else if (!photoUrl && user.photo_url) {
+            setUser({ ...user, photo_url: undefined });
+          }
+        } catch (error) {
+          console.error("Failed to fetch patient profile photo:", error);
+        }
+      }
+    };
+    fetchProfilePhoto();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isAuthenticated]);
+
+  useEffect(() => {
+    if (user?.photo_url && user.role === "patient") {
+      setProfilePhotoUrl(user.photo_url);
+      setPhotoVersion((prev) => prev + 1);
+    } else if (!user?.photo_url && user?.role === "patient") {
+      setProfilePhotoUrl(null);
+    }
+  }, [user?.photo_url, user?.role]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -344,14 +378,26 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
               <NotificationBell />
 
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-gray-200">
-                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-                  <Image
-                    src="/Avatar.jpg"
-                    alt="User"
-                    width={40}
-                    height={40}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden relative">
+                  {profilePhotoUrl || user?.photo_url ? (
+                    <Image
+                      key={`patient-header-photo-${photoVersion}`}
+                      src={`${profilePhotoUrl || user?.photo_url}?v=${photoVersion}&t=${Date.now()}`}
+                      alt="Patient"
+                      width={40}
+                      height={40}
+                      className="w-full h-full object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <svg
+                      className="w-6 h-6 text-gray-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3a3 3 0 110 6 3 3 0 010-6zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z" />
+                    </svg>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">

@@ -11,7 +11,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from db import get_session
-from db.crud import auth_crud, doctor_crud, address_crud, specialty_crud
+from db.crud import auth_crud, doctor_crud, address_crud, specialty_crud, patient_file_crud
 from schemas import (
     DoctorProfileUpdate,
     DoctorListItem,
@@ -22,6 +22,7 @@ from schemas import (
     AddressRead,
     SpecialtyRead,
     DoctorSpecialtyRead,
+    FileBatchShareRead,
 )
 from services import verify_access_token, get_storage_service
 from services.google_places import (
@@ -276,6 +277,22 @@ async def update_specialties(
         await session.refresh(ds.specialty)
     
     return doctor_specialties
+
+
+@router.get("/report-shares", response_model=List[FileBatchShareRead])
+async def list_report_shares(
+    current_user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return lab report batches that patients have shared with the doctor."""
+    shares = await patient_file_crud.list_file_batch_shares_for_doctor(
+        doctor_user_id=current_user.id,
+        session=session,
+    )
+    return [
+        patient_file_crud.serialize_file_batch_share(share)
+        for share in shares
+    ]
 
 
 

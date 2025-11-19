@@ -26,6 +26,27 @@ from .notification_schema import (
     NotificationRead,
 )
 from .address_schema import AddressUpdate, AddressRead
+from .patient_file_schema import (
+    PatientFileRead,
+    FileBatchCreate,
+    FileBatchRead,
+    FileBatchWithFiles,
+    ShareableDoctor,
+    ShareBatchRequest,
+    FileBatchShareRead,
+)
+from .patient_schema import (
+    PatientProfileUpdate,
+    PatientProfileRead,
+    PatientProfileEnvelope,
+    PatientProfileUpdateResponse,
+    PatientMeasurementRead,
+    PatientMeasurementHistory,
+    PatientMedicalConditionRead,
+    PatientDiagnosisRead,
+    PatientUserInfoUpdate,
+    PatientUserSummary,
+)
 
 __all__ = [
     UserLogin,
@@ -54,4 +75,21 @@ __all__ = [
     NotificationRead,
     AddressUpdate,
     AddressRead,
+    PatientFileRead,
+    FileBatchCreate,
+    FileBatchRead,
+    FileBatchWithFiles,
+    ShareableDoctor,
+    ShareBatchRequest,
+    FileBatchShareRead,
+    PatientProfileUpdate,
+    PatientProfileRead,
+    PatientProfileEnvelope,
+    PatientProfileUpdateResponse,
+    PatientMeasurementRead,
+    PatientMeasurementHistory,
+    PatientMedicalConditionRead,
+    PatientDiagnosisRead,
+    PatientUserInfoUpdate,
+    PatientUserSummary,
 ]

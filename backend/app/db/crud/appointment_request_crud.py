@@ -84,6 +84,8 @@ async def update_appointment_request(
     request_id: int,
     *,
     status: Optional[str] = None,
+    preferred_date: Optional[datetime] = None,
+    preferred_time_slot_start: Optional[time] = None,
     suggested_date: Optional[datetime] = None,
     suggested_time_slot_start: Optional[time] = None,
     notes: Optional[str] = None,
@@ -95,6 +97,10 @@ async def update_appointment_request(
 
     if status is not None:
         request.status = status
+    if preferred_date is not None:
+        request.preferred_date = preferred_date
+    if preferred_time_slot_start is not None:
+        request.preferred_time_slot_start = preferred_time_slot_start
     if suggested_date is not None:
         request.suggested_date = suggested_date
     if suggested_time_slot_start is not None:

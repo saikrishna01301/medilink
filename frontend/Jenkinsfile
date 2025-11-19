@@ -498,7 +498,6 @@ def sendSlackNotification(String status) {
         echo "Slack notification sent successfully"
     } catch (Exception e) {
         echo "Failed to send Slack notification: ${e.message}"
-        // Fallback: try with simple text format
         try {
             def escapedCommitMsg = commitMsg.replace('"', '\\"').replace('\n', ' ')
             def fallbackMsg = "${title}\\n\\n*Commit:* ${commitHash}\\n*Message:* ${escapedCommitMsg}\\n*Author:* ${author}\\n*Branch:* ${branch}\\n*Build:* #${BUILD_NUMBER}\\n\\n${statusMsg}"
@@ -513,7 +512,6 @@ def sendSlackNotification(String status) {
     }
 }
 
-// Helper function to generate build summary
 def generateBuildSummary() {
     def summary = """
 ========================================

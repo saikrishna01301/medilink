@@ -1,6 +1,101 @@
-// API Base URL
-// Use relative path so calls go through Next.js rewrite: /api -> backend origin
-const API_BASE_URL = "/api";
+// API base resolution
+// Prefer explicit backend URL via NEXT_PUBLIC_API_URL, otherwise fall back to Next.js rewrite (/api -> backend origin)
+const RELATIVE_API_BASE = "/api";
+const RAW_ABSOLUTE_API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
+const ABSOLUTE_API_BASE = RAW_ABSOLUTE_API_BASE
+  ? RAW_ABSOLUTE_API_BASE.replace(/\/$/, "")
+  : "";
+
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+const isLocalHostname = (hostname: string): boolean => {
+  if (!hostname) {
+    return false;
+  }
+  if (LOCAL_HOSTNAMES.has(hostname)) {
+    return true;
+  }
+  return hostname.endsWith(".local");
+};
+
+type ApiBaseResolution = {
+  mode: "absolute" | "relative";
+  base: string;
+};
+
+let cachedAbsoluteUrl: URL | null = null;
+if (ABSOLUTE_API_BASE) {
+  try {
+    cachedAbsoluteUrl = new URL(ABSOLUTE_API_BASE);
+  } catch (error) {
+    console.warn(
+      "NEXT_PUBLIC_API_URL must be an absolute URL including protocol. Ignoring invalid value:",
+      ABSOLUTE_API_BASE
+    );
+    cachedAbsoluteUrl = null;
+  }
+}
+
+const resolveAbsoluteBaseForBrowser = (): string | null => {
+  if (!cachedAbsoluteUrl) {
+    return null;
+  }
+
+  if (typeof window === "undefined") {
+    return cachedAbsoluteUrl.href.replace(/\/$/, "");
+  }
+
+  const browserHostname = window.location.hostname;
+  const browserIsLocal = isLocalHostname(browserHostname);
+  const absoluteHostname = cachedAbsoluteUrl.hostname;
+  const absoluteIsLocal = isLocalHostname(absoluteHostname);
+
+  // Prevent exposing localhost/127.* targets to real users (causes failed requests)
+  if (absoluteIsLocal && !browserIsLocal) {
+    return null;
+  }
+
+  // Avoid mixed content in HTTPS environments unless the target is also local
+  if (
+    window.location.protocol === "https:" &&
+    cachedAbsoluteUrl.protocol === "http:" &&
+    !absoluteIsLocal
+  ) {
+    return null;
+  }
+
+  return cachedAbsoluteUrl.href.replace(/\/$/, "");
+};
+
+const resolveApiBase = (): ApiBaseResolution => {
+  const absoluteBase = resolveAbsoluteBaseForBrowser();
+  if (absoluteBase) {
+    return { mode: "absolute", base: absoluteBase };
+  }
+  return { mode: "relative", base: RELATIVE_API_BASE };
+};
+
+const buildApiUrl = (path: string): string => {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const { base } = resolveApiBase();
+  if (base.endsWith("/")) {
+    return `${base}${normalizedPath.replace(/^\//, "")}`;
+  }
+  return `${base}${normalizedPath}`;
+};
+
+const logApiBase = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const baseInfo = resolveApiBase();
+  const key = `${baseInfo.mode}:${baseInfo.base}`;
+  const globalObj = window as any;
+  if (globalObj.__medilinkLoggedApiBase !== key) {
+    console.info("🌐 MediLink API base:", baseInfo);
+    globalObj.__medilinkLoggedApiBase = key;
+  }
+};
 
 // API Response types
 export interface SignUpRequest {
@@ -125,7 +220,7 @@ const parseErrorDetail = async (response: Response, fallback: string) => {
 const refreshAccessToken = async (): Promise<void> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const response = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
+      const response = await fetch(buildApiUrl("/auth/token/refresh"), {
         method: "POST",
         credentials: "include",
       });
@@ -151,6 +246,7 @@ const apiFetch = async <T = unknown>(
   path: string,
   options: APIRequestOptions = {}
 ): Promise<T> => {
+  logApiBase();
   const {
     skipAuth = false,
     retry = true,
@@ -160,10 +256,65 @@ const apiFetch = async <T = unknown>(
     ...init
   } = options;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  // Set a longer timeout for file uploads
+  const isFileUpload = init.method === "POST" && init.body instanceof FormData;
+  const timeout = isFileUpload ? 300000 : 30000; // 5 minutes for uploads, 30 seconds otherwise
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  // For FormData, we MUST NOT set Content-Type header - browser sets it automatically with boundary
+  const fetchOptions: RequestInit = {
     credentials: credentials ?? "include",
+    signal: controller.signal,
     ...init,
-  });
+  };
+  
+  // Remove Content-Type header if body is FormData (browser will set it with boundary)
+  if (init.body instanceof FormData) {
+    if (fetchOptions.headers) {
+      const headers = new Headers(fetchOptions.headers);
+      headers.delete("Content-Type");
+      fetchOptions.headers = headers;
+    } else {
+      // Ensure no Content-Type is set at all for FormData
+      fetchOptions.headers = {};
+    }
+  }
+  
+  // Debug logging for file uploads
+  if (isFileUpload) {
+    console.log("📤 File upload request:", {
+      url: buildApiUrl(path),
+      method: fetchOptions.method,
+      hasBody: !!fetchOptions.body,
+      bodyType: fetchOptions.body?.constructor?.name,
+      headers: fetchOptions.headers ? Object.fromEntries(new Headers(fetchOptions.headers).entries()) : {},
+    });
+  }
+  
+  let response: Response;
+  try {
+    response = await fetch(buildApiUrl(path), fetchOptions);
+    clearTimeout(timeoutId);
+    
+    if (isFileUpload) {
+      console.log("📥 File upload response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+    }
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === "AbortError") {
+      throw new APIError(408, "Request timeout. Please try again with smaller files.");
+    }
+    if (fetchError instanceof TypeError && fetchError.message === "Failed to fetch") {
+      throw new APIError(0, "Network error: Unable to reach server. Please check your connection and ensure the backend server is running.");
+    }
+    throw fetchError;
+  }
 
   if (response.status === 401 && !skipAuth && retry) {
     try {
@@ -179,6 +330,7 @@ const apiFetch = async <T = unknown>(
 
   if (!response.ok) {
     const detail = await parseErrorDetail(response, defaultError);
+    console.error(`API Error [${response.status}]: ${detail}`);
     throw new APIError(response.status, detail);
   }
 
@@ -373,6 +525,113 @@ export interface DoctorProfileData {
   clinics: DoctorClinic[];
   social_links: DoctorSocialLink[];
   specialties?: DoctorSpecialty[];
+}
+
+export interface PatientUserSummary {
+  id: number;
+  first_name?: string;
+  middle_name?: string | null;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  emergency_contact?: string | null;
+}
+
+export interface PatientProfile {
+  id: number;
+  user_id: number;
+  date_of_birth?: string | null;
+  bio?: string | null;
+  gender?: string | null;
+  blood_type?: string | null;
+  photo_url?: string | null;
+  cover_photo_url?: string | null;
+  current_height_cm?: number | null;
+  current_weight_kg?: number | null;
+  last_height_recorded_at?: string | null;
+  last_weight_recorded_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PatientConditionStatus = "active" | "managed" | "resolved";
+export type PatientDiagnosisStatus = "active" | "in_remission" | "resolved";
+
+export interface PatientMedicalCondition {
+  id: number;
+  condition_name: string;
+  status: PatientConditionStatus;
+  diagnosed_on?: string | null;
+  notes?: string | null;
+  is_chronic: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatientDiagnosis {
+  id: number;
+  disease_name: string;
+  status: PatientDiagnosisStatus;
+  diagnosed_on?: string | null;
+  notes?: string | null;
+  icd10_code?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PatientMeasurement {
+  id: number;
+  measurement_type: "height" | "weight";
+  value?: number | null;
+  unit: string;
+  source?: string | null;
+  recorded_at: string;
+}
+
+export interface PatientProfileData {
+  user: PatientUserSummary;
+  profile: PatientProfile | null;
+  medical_conditions: PatientMedicalCondition[];
+  diagnosed_diseases: PatientDiagnosis[];
+  measurements: {
+    height_history: PatientMeasurement[];
+    weight_history: PatientMeasurement[];
+  };
+}
+
+export interface PatientConditionInput {
+  condition_name: string;
+  status?: PatientConditionStatus;
+  diagnosed_on?: string;
+  notes?: string;
+  is_chronic?: boolean;
+}
+
+export interface PatientDiagnosisInput {
+  disease_name: string;
+  status?: PatientDiagnosisStatus;
+  diagnosed_on?: string;
+  notes?: string;
+  icd10_code?: string;
+}
+
+export interface PatientProfileUpdatePayload {
+  bio?: string;
+  date_of_birth?: string;
+  gender?: string;
+  blood_type?: string;
+  height_cm?: number;
+  weight_kg?: number;
+  medical_conditions?: PatientConditionInput[];
+  diagnosed_diseases?: PatientDiagnosisInput[];
+}
+
+export interface PatientUserInfoUpdate {
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  phone?: string;
+  emergency_contact?: string;
 }
 
 export interface DoctorProfileUpdate {
@@ -771,6 +1030,78 @@ export const doctorAPI = {
       defaultError: "Failed to update specialties",
     });
   },
+
+  listReportShares: async (): Promise<FileBatchShare[]> => {
+    return apiFetch<FileBatchShare[]>("/doctors/report-shares", {
+      method: "GET",
+      defaultError: "Failed to fetch shared reports",
+    });
+  },
+};
+
+export const patientAPI = {
+  getProfile: async (): Promise<PatientProfileData> => {
+    return apiFetch<PatientProfileData>("/patients/profile", {
+      method: "GET",
+      defaultError: "Failed to fetch patient profile",
+    });
+  },
+
+  updateProfile: async (payload: PatientProfileUpdatePayload): Promise<PatientProfileData> => {
+    return apiFetch<PatientProfileData>("/patients/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to update patient profile",
+    });
+  },
+
+  updateUserInfo: async (payload: PatientUserInfoUpdate): Promise<PatientProfileData> => {
+    return apiFetch<PatientProfileData>("/patients/user-info", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to update patient information",
+    });
+  },
+
+  uploadProfilePicture: async (file: File): Promise<{ message: string; photo_url: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ message: string; photo_url: string }>("/patients/upload-profile-picture", {
+      method: "POST",
+      body: formData,
+      defaultError: "Failed to upload profile picture",
+    });
+  },
+
+  deleteProfilePicture: async (): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>("/patients/profile-picture", {
+      method: "DELETE",
+      defaultError: "Failed to delete profile picture",
+    });
+  },
+
+  uploadCoverPhoto: async (file: File): Promise<{ message: string; cover_photo_url: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiFetch<{ message: string; cover_photo_url: string }>("/patients/upload-cover-photo", {
+      method: "POST",
+      body: formData,
+      defaultError: "Failed to upload cover photo",
+    });
+  },
+
+  deleteCoverPhoto: async (): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>("/patients/cover-photo", {
+      method: "DELETE",
+      defaultError: "Failed to delete cover photo",
+    });
+  },
 };
 
 export const calendarAPI = {
@@ -860,6 +1191,8 @@ export interface AppointmentRequestCreate {
 
 export interface AppointmentRequestUpdate {
   status?: string;
+  preferred_date?: string;
+  preferred_time_slot_start?: string;
   suggested_date?: string;
   suggested_time_slot_start?: string;
   notes?: string;
@@ -994,6 +1327,344 @@ export const notificationAPI = {
     return apiFetch<Notification>(`/notifications/${notificationId}/archive`, {
       method: "PATCH",
       defaultError: "Failed to archive notification",
+    });
+  },
+};
+
+// Patient File Types
+export interface PatientFile {
+  id: number;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+}
+
+export interface FileBatch {
+  id: number;
+  patient_user_id: number;
+  category: "insurance" | "lab_report";
+  heading?: string | null;
+  created_at: string;
+  updated_at: string;
+  files: PatientFile[];
+}
+
+export interface FileBatchCreate {
+  category: "insurance" | "lab_report";
+  heading?: string;
+}
+
+export type ShareRelationshipType = "appointment" | "appointment_request";
+
+export interface ShareableDoctor {
+  doctor_user_id: number;
+  doctor_name: string;
+  doctor_photo_url?: string | null;
+  doctor_specialty?: string | null;
+  relationship_type: ShareRelationshipType;
+  appointment_id?: number | null;
+  appointment_status?: string | null;
+  appointment_date?: string | null;
+  appointment_request_id?: number | null;
+  appointment_request_status?: string | null;
+  appointment_request_preferred_date?: string | null;
+}
+
+export interface ShareBatchTargetPayload {
+  doctor_user_id: number;
+  appointment_id?: number;
+  appointment_request_id?: number;
+}
+
+export interface ShareBatchRequestPayload {
+  doctor_targets: ShareBatchTargetPayload[];
+}
+
+export interface FileBatchShare {
+  share_id: number;
+  file_batch_id: number;
+  batch_heading?: string | null;
+  batch_category: "insurance" | "lab_report";
+  share_status: string;
+  shared_at: string;
+  patient_user_id: number;
+  patient_name: string;
+  doctor_user_id: number;
+  doctor_name?: string | null;
+  doctor_photo_url?: string | null;
+  doctor_specialty?: string | null;
+  appointment_id?: number | null;
+  appointment_status?: string | null;
+  appointment_date?: string | null;
+  appointment_request_id?: number | null;
+  appointment_request_status?: string | null;
+  appointment_request_preferred_date?: string | null;
+  files: PatientFile[];
+}
+
+export const patientFileAPI = {
+  // Upload multiple files as a batch
+  uploadFiles: async (
+    category: "insurance" | "lab_report",
+    files: File[],
+    heading?: string
+  ): Promise<FileBatch> => {
+    // Validate inputs
+    if (!files || files.length === 0) {
+      throw new APIError(400, "No files provided");
+    }
+    
+    if (!category || (category !== "insurance" && category !== "lab_report")) {
+      throw new APIError(400, `Invalid category: ${category}. Must be 'insurance' or 'lab_report'`);
+    }
+
+    const formData = new FormData();
+    formData.append("category", category);
+    if (heading) {
+      formData.append("heading", heading);
+    }
+    // Append each file with the same field name "files" for FastAPI List[UploadFile]
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    console.log(`📎 Preparing to upload ${files.length} files for category: ${category}`, {
+      category,
+      heading,
+      fileCount: files.length,
+      fileNames: files.map(f => f.name),
+      fileSizes: files.map(f => f.size),
+      formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+        key,
+        value: value instanceof File ? `${value.name} (${value.size} bytes)` : value
+      })),
+    });
+
+    try {
+      const result = await apiFetch<FileBatch>("/patient-files/", {
+        method: "POST",
+        body: formData,
+        expectJson: true,
+        defaultError: "Failed to upload files",
+        credentials: "include",
+        // DO NOT set headers here - FormData needs browser to set Content-Type with boundary
+      });
+      console.log("✅ Upload successful:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ Upload API error:", error);
+      // Re-throw APIError as-is, wrap others
+      if (error instanceof APIError) {
+        throw error;
+      }
+      throw new APIError(500, error instanceof Error ? error.message : "Failed to upload files");
+    }
+  },
+
+  // List all file batches, optionally filtered by category
+  listBatches: async (category?: "insurance" | "lab_report"): Promise<FileBatch[]> => {
+    const query = category ? `?category=${category}` : "";
+    return apiFetch<FileBatch[]>(`/patient-files${query}`, {
+      method: "GET",
+      defaultError: "Failed to fetch file batches",
+    });
+  },
+
+  // Get a specific file batch
+  getBatch: async (batchId: number): Promise<FileBatch> => {
+    return apiFetch<FileBatch>(`/patient-files/${batchId}`, {
+      method: "GET",
+      defaultError: "Failed to fetch file batch",
+    });
+  },
+
+  // Delete a file batch
+  deleteBatch: async (batchId: number): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`/patient-files/${batchId}`, {
+      method: "DELETE",
+      defaultError: "Failed to delete file batch",
+    });
+  },
+
+  // Delete a single file
+  deleteFile: async (fileId: number): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`/patient-files/files/${fileId}`, {
+      method: "DELETE",
+      defaultError: "Failed to delete file",
+    });
+  },
+
+  listShareableDoctors: async (): Promise<ShareableDoctor[]> => {
+    return apiFetch<ShareableDoctor[]>(`/patient-files/shareable-doctors`, {
+      method: "GET",
+      defaultError: "Failed to load shareable doctors",
+    });
+  },
+
+  shareBatch: async (batchId: number, payload: ShareBatchRequestPayload): Promise<FileBatchShare[]> => {
+    return apiFetch<FileBatchShare[]>(`/patient-files/${batchId}/share`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      defaultError: "Failed to share files",
+    });
+  },
+};
+
+// Insurance Types
+export interface InsuranceMember {
+  name: string;
+  relationship?: string | null;
+  date_of_birth?: string | null;
+}
+
+export interface PolicyFile {
+  id: number;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  created_at?: string | null;
+}
+
+export interface InsurancePolicy {
+  id: string;
+  patient_user_id: number;
+  insurer_name: string;
+  plan_name?: string | null;
+  policy_number: string;
+  group_number?: string | null;
+  insurance_number?: string | null;
+  coverage_start?: string | null;
+  coverage_end?: string | null;
+  is_primary: boolean;
+  cover_amount?: number | null;
+  policy_members?: InsuranceMember[] | null;
+  document_id?: string | null;
+  policy_files?: PolicyFile[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InsurancePolicySummary {
+  total_active: number;
+  total_expired: number;
+  policies: InsurancePolicy[];
+}
+
+export interface InsurancePolicyCreate {
+  insurer_name: string;
+  plan_name?: string;
+  policy_number: string;
+  group_number?: string;
+  insurance_number?: string;
+  coverage_start?: string;
+  coverage_end?: string;
+  is_primary?: boolean;
+  cover_amount?: number;
+  policy_members?: InsuranceMember[];
+  document_id?: string;
+}
+
+export interface ConsultingDoctor {
+  id: number;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  specialty?: string | null;
+  photo_url?: string | null;
+}
+
+export const insuranceAPI = {
+  // Get insurance summary
+  getSummary: async (): Promise<InsurancePolicySummary> => {
+    return apiFetch<InsurancePolicySummary>("/insurance/summary", {
+      method: "GET",
+      defaultError: "Failed to fetch insurance summary",
+    });
+  },
+
+  // List all insurance policies
+  listPolicies: async (): Promise<InsurancePolicy[]> => {
+    return apiFetch<InsurancePolicy[]>("/insurance", {
+      method: "GET",
+      defaultError: "Failed to fetch insurance policies",
+    });
+  },
+
+  // Get a specific insurance policy
+  getPolicy: async (policyId: string): Promise<InsurancePolicy> => {
+    return apiFetch<InsurancePolicy>(`/insurance/${policyId}`, {
+      method: "GET",
+      defaultError: "Failed to fetch insurance policy",
+    });
+  },
+
+  // Create a new insurance policy
+  createPolicy: async (data: InsurancePolicyCreate): Promise<InsurancePolicy> => {
+    return apiFetch<InsurancePolicy>("/insurance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      defaultError: "Failed to create insurance policy",
+    });
+  },
+
+  // Create a new insurance policy with files
+  createPolicyWithFiles: async (
+    data: InsurancePolicyCreate,
+    files: File[]
+  ): Promise<InsurancePolicy> => {
+    const formData = new FormData();
+    formData.append("policy_json", JSON.stringify(data));
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    return apiFetch<InsurancePolicy>("/insurance/with-files", {
+      method: "POST",
+      body: formData,
+      defaultError: "Failed to create insurance policy with files",
+    });
+  },
+
+  // Update an insurance policy
+  updatePolicy: async (
+    policyId: string,
+    data: Partial<InsurancePolicyCreate>
+  ): Promise<InsurancePolicy> => {
+    return apiFetch<InsurancePolicy>(`/insurance/${policyId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      defaultError: "Failed to update insurance policy",
+    });
+  },
+
+  // Delete an insurance policy
+  deletePolicy: async (policyId: string): Promise<void> => {
+    await apiFetch<void>(`/insurance/${policyId}`, {
+      method: "DELETE",
+      expectJson: false,
+      defaultError: "Failed to delete insurance policy",
+    });
+  },
+
+  // Get consulting doctors
+  getConsultingDoctors: async (): Promise<ConsultingDoctor[]> => {
+    return apiFetch<ConsultingDoctor[]>("/insurance/consulting-doctors", {
+      method: "GET",
+      defaultError: "Failed to fetch consulting doctors",
     });
   },
 };

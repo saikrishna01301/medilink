@@ -17,6 +17,8 @@ class AppointmentRequestCreate(BaseModel):
 
 class AppointmentRequestUpdate(BaseModel):
     status: Optional[str] = None
+    preferred_date: Optional[datetime] = None
+    preferred_time_slot_start: Optional[time] = None
     suggested_date: Optional[datetime] = None
     suggested_time_slot_start: Optional[time] = None
     notes: Optional[str] = Field(default=None, max_length=2000)

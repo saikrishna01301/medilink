@@ -80,6 +80,8 @@ async def update_appointment(
     session: AsyncSession,
     appointment_id: int,
     *,
+    appointment_date: Optional[datetime] = None,
+    duration_minutes: Optional[int] = None,
     status: Optional[str] = None,
     notes: Optional[str] = None,
 ) -> Optional[Appointment]:
@@ -87,6 +89,10 @@ async def update_appointment(
     if not appointment:
         return None
 
+    if appointment_date is not None:
+        appointment.appointment_date = appointment_date
+    if duration_minutes is not None:
+        appointment.duration_minutes = duration_minutes
     if status is not None:
         appointment.status = status
     if notes is not None:

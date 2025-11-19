@@ -13,6 +13,8 @@ from db.models import (
     AppointmentRequest,
     Notification,
     Address,
+    FileBatch,
+    PatientFile,
 )
 from core import config
 import asyncpg

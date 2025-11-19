@@ -6,6 +6,15 @@ from .appointment_request_model import AppointmentRequest, AppointmentRequestSta
 from .notification_model import Notification, NotificationType, NotificationStatus
 from .address_model import Address
 from .chat_model import Conversation, ConversationParticipant, Message, MessageReadReceipt
+from .patient_file_model import FileBatch, PatientFile, FileBatchCategory, FileBatchShare
+from .patient_model import (
+    PatientProfile,
+    PatientMeasurement,
+    PatientMedicalCondition,
+    PatientDiagnosis,
+)
+from .insurance_model import PatientInsurancePolicy, PatientInsurancePolicyMember
+from .insurance_policy_document_model import InsurancePolicyDocument
 
 __all__ = [
     "User",
@@ -26,4 +35,15 @@ __all__ = [
     "ConversationParticipant",
     "Message",
     "MessageReadReceipt",
+    "FileBatch",
+    "PatientFile",
+    "FileBatchCategory",
+    "FileBatchShare",
+    "PatientProfile",
+    "PatientMeasurement",
+    "PatientMedicalCondition",
+    "PatientDiagnosis",
+    "PatientInsurancePolicy",
+    "PatientInsurancePolicyMember",
+    "InsurancePolicyDocument",
 ]

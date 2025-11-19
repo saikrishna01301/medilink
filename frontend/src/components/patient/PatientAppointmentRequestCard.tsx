@@ -11,6 +11,9 @@ interface PatientAppointmentRequestCardProps {
 export default function PatientAppointmentRequestCard({ request, onUpdate }: PatientAppointmentRequestCardProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRescheduleForm, setShowRescheduleForm] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -102,6 +105,40 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
         setError(err.message || "Failed to reject alternative time");
       } else {
         setError("Failed to reject alternative time. Please try again.");
+      }
+    }
+  };
+
+  const handleRequestReschedule = async () => {
+    if (!rescheduleDate || !rescheduleTime) {
+      setError("Please select both a date and time to request a reschedule.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const preferredDate = new Date(`${rescheduleDate}T00:00:00`);
+      await appointmentRequestAPI.update(request.request_id, {
+        status: "pending",
+        preferred_date: preferredDate.toISOString(),
+        preferred_time_slot_start: rescheduleTime,
+      });
+      setIsProcessing(false);
+      setShowRescheduleForm(false);
+      setRescheduleDate("");
+      setRescheduleTime("");
+      onUpdate();
+    } catch (err) {
+      console.error("Error requesting reschedule:", err);
+      setIsProcessing(false);
+      if (err instanceof APIError) {
+        setError(err.detail || "Failed to request reschedule");
+      } else if (err instanceof Error) {
+        setError(err.message || "Failed to request reschedule");
+      } else {
+        setError("Failed to request reschedule. Please try again.");
       }
     }
   };
@@ -219,22 +256,30 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
               </span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             <button
               type="button"
               onClick={handleAcceptAlternative}
               disabled={isProcessing}
               className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isProcessing ? "Processing..." : "Accept Alternative"}
+              {isProcessing ? "Processing..." : "Accept & Confirm"}
             </button>
             <button
               type="button"
               onClick={handleRejectAlternative}
               disabled={isProcessing}
-              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isProcessing ? "Processing..." : "Reject Alternative"}
+              {isProcessing ? "Processing..." : "Keep Original Time"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isProcessing}
+              className="flex-1 rounded-lg border-2 border-red-600 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isProcessing ? "Processing..." : "Cancel Appointment"}
             </button>
           </div>
         </div>
@@ -267,6 +312,85 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
           {request.appointment_id && (
             <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
           )}
+        </div>
+      )}
+
+      {request.status === "confirmed" && (
+        <div className="border-t border-gray-200 pt-3 space-y-3">
+          {!showRescheduleForm ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowRescheduleForm(true);
+                if (!rescheduleDate && request.preferred_date) {
+                  setRescheduleDate(request.preferred_date.split("T")[0]);
+                }
+                if (!rescheduleTime && request.preferred_time_slot_start) {
+                  const [hours, minutes] = request.preferred_time_slot_start.split(":");
+                  setRescheduleTime(`${hours}:${minutes}`);
+                }
+              }}
+              className="w-full rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+            >
+              Request Reschedule
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    New Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    New Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleRequestReschedule}
+                  disabled={isProcessing}
+                  className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isProcessing ? "Submitting..." : "Submit Request"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRescheduleForm(false);
+                    setRescheduleDate("");
+                    setRescheduleTime("");
+                  }}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {request.status === "pending" && request.appointment_id && (
+        <div className="border-t border-gray-200 pt-3">
+          <p className="text-sm text-yellow-700 font-medium">
+            Reschedule request sent. Awaiting doctor's response.
+          </p>
         </div>
       )}
 

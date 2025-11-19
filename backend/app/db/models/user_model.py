@@ -16,6 +16,8 @@ import enum
 if TYPE_CHECKING:
     from .appointment_model import Appointment
     from .address_model import Address
+    from .patient_model import PatientProfile
+    from .insurance_model import PatientInsurancePolicy
 
 
 # Enum for user roles matching database ENUM type
@@ -56,8 +58,16 @@ class User(Base):
     doctor_profile: Mapped[Optional["DoctorProfile"]] = relationship(
         back_populates="user", uselist=False
     )
+    # Link to patient profile (one-to-one)
+    patient_profile: Mapped[Optional["PatientProfile"]] = relationship(
+        back_populates="user", uselist=False
+    )
 
     # Addresses associated with the user (home, primary clinic, etc.)
     addresses: Mapped[List["Address"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    # Insurance policies for patients
+    insurance_policies: Mapped[List["PatientInsurancePolicy"]] = relationship(
+        back_populates="patient", cascade="all, delete-orphan", passive_deletes=True
     )

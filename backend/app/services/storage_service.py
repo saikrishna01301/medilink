@@ -17,19 +17,42 @@ class StorageService:
         self.bucket_name = config.GCP_BUCKET_NAME
         self.project_id = config.GCP_PROJECT_ID
         
-        # Initialize storage client
-        if config.USE_DEFAULT_CREDENTIALS:
-            # Use default credentials (for GCP environments)
-            self.client = storage.Client(project=self.project_id)
-        elif config.GCP_STORAGE_KEY_FILE and os.path.exists(config.GCP_STORAGE_KEY_FILE):
-            # Use service account key file
-            self.client = storage.Client.from_service_account_json(
-                config.GCP_STORAGE_KEY_FILE,
-                project=self.project_id
+        # Validate required configuration
+        if not self.bucket_name:
+            raise ValueError(
+                "GCP_BUCKET_NAME environment variable is not set. "
+                "Please set it in your .env file or environment variables."
             )
-        else:
-            # Try default credentials as fallback
-            self.client = storage.Client(project=self.project_id)
+        
+        if not self.project_id:
+            raise ValueError(
+                "GCP_PROJECT_ID environment variable is not set. "
+                "Please set it in your .env file or environment variables."
+            )
+        
+        # Initialize storage client
+        try:
+            if config.USE_DEFAULT_CREDENTIALS:
+                # Use default credentials (for GCP environments)
+                self.client = storage.Client(project=self.project_id)
+            elif config.GCP_STORAGE_KEY_FILE and os.path.exists(config.GCP_STORAGE_KEY_FILE):
+                # Use service account key file
+                print(f"Using GCP service account key file: {config.GCP_STORAGE_KEY_FILE}")
+                self.client = storage.Client.from_service_account_json(
+                    config.GCP_STORAGE_KEY_FILE,
+                    project=self.project_id
+                )
+            else:
+                # Try default credentials as fallback
+                print("Attempting to use default GCP credentials...")
+                self.client = storage.Client(project=self.project_id)
+        except Exception as e:
+            raise ValueError(
+                f"Failed to initialize GCP Storage client: {str(e)}. "
+                f"Please ensure GCP credentials are properly configured. "
+                f"Set GCP_STORAGE_KEY_FILE to path of service account JSON file, "
+                f"or set USE_DEFAULT_CREDENTIALS=true to use default credentials."
+            ) from e
         
         self.bucket = None
         self._ensure_bucket()
@@ -40,15 +63,29 @@ class StorageService:
             self.bucket = self.client.bucket(self.bucket_name)
             # Try to get bucket metadata to verify it exists
             self.bucket.reload()
+            print(f"✓ GCP Storage bucket '{self.bucket_name}' is accessible")
         except NotFound:
-            # Bucket doesn't exist, create it
+            # Bucket doesn't exist, try to create it
             if self.project_id:
-                self.bucket = self.client.create_bucket(self.bucket_name, project=self.project_id)
+                try:
+                    print(f"Bucket '{self.bucket_name}' not found, attempting to create it...")
+                    self.bucket = self.client.create_bucket(self.bucket_name, project=self.project_id)
+                    print(f"✓ Created bucket '{self.bucket_name}'")
+                except Exception as create_error:
+                    raise ValueError(
+                        f"Bucket '{self.bucket_name}' not found and failed to create it: {str(create_error)}. "
+                        f"Please ensure the bucket exists in GCP Cloud Storage or you have permissions to create it."
+                    ) from create_error
             else:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Bucket {self.bucket_name} not found and project_id not configured"
+                raise ValueError(
+                    f"Bucket '{self.bucket_name}' not found and GCP_PROJECT_ID is not configured. "
+                    f"Cannot create bucket without project ID."
                 )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to access GCP Storage bucket '{self.bucket_name}': {str(e)}. "
+                f"Please verify the bucket name and your GCP credentials/permissions."
+            ) from e
     
     async def upload_file(
         self,
@@ -222,6 +259,14 @@ def get_storage_service() -> StorageService:
     """Get or create storage service instance"""
     global _storage_service
     if _storage_service is None:
-        _storage_service = StorageService()
+        try:
+            _storage_service = StorageService()
+        except (ValueError, Exception) as e:
+            # Reset the global instance so it can be retried
+            _storage_service = None
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Storage service initialization failed: {str(e)}"
+            ) from e
     return _storage_service
 

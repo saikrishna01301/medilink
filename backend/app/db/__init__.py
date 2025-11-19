@@ -10,6 +10,14 @@ from .models import (
     DoctorSpecialty,
     Appointment,
     Address,
+    PatientProfile,
+    PatientMeasurement,
+    PatientMedicalCondition,
+    PatientDiagnosis,
+    PatientInsurancePolicy,
+    PatientInsurancePolicyMember,
+    InsurancePolicyDocument,
+    PatientFile,
 )
 from .crud import auth_crud
 
@@ -31,4 +39,12 @@ __all__ = [
     "DoctorSpecialty",
     "Appointment",
     "Address",
+    "PatientProfile",
+    "PatientMeasurement",
+    "PatientMedicalCondition",
+    "PatientDiagnosis",
+    "PatientInsurancePolicy",
+    "PatientInsurancePolicyMember",
+    "InsurancePolicyDocument",
+    "PatientFile",
 ]
