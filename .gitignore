@@ -9,6 +9,12 @@ gcp-key.json
 *-key.json
 service-account*.json
 
+# OAuth credentials
+*oauth*.json
+
+# Documentation files
+*.md
+
 # Python
 __pycache__/
 *.py[cod]
