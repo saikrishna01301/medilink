@@ -75,14 +75,14 @@ class StorageService:
             self.bucket = self.client.bucket(self.bucket_name)
             # Try to get bucket metadata to verify it exists
             self.bucket.reload()
-            print(f"✓ GCP Storage bucket '{self.bucket_name}' is accessible")
+            print(f"[OK] GCP Storage bucket '{self.bucket_name}' is accessible")
         except NotFound:
             # Bucket doesn't exist, try to create it
             if self.project_id:
                 try:
                     print(f"Bucket '{self.bucket_name}' not found, attempting to create it...")
                     self.bucket = self.client.create_bucket(self.bucket_name, project=self.project_id)
-                    print(f"✓ Created bucket '{self.bucket_name}'")
+                    print(f"[OK] Created bucket '{self.bucket_name}'")
                 except Exception as create_error:
                     raise ValueError(
                         f"Bucket '{self.bucket_name}' not found and failed to create it: {str(create_error)}. "

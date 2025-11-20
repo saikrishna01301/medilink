@@ -42,6 +42,15 @@ def _normalize_candidate(candidate: Optional[str]) -> Optional[str]:
         return None
 
     candidate = candidate.strip()
+
+    # Remove matching wrapping quotes (single or double) that often appear in .env files
+    if (
+        len(candidate) >= 2
+        and candidate[0] in {"'", '"'}
+        and candidate[-1] == candidate[0]
+    ):
+        candidate = candidate[1:-1].strip()
+
     if not candidate:
         return None
 
@@ -49,10 +58,6 @@ def _normalize_candidate(candidate: Optional[str]) -> Optional[str]:
     file_contents = _read_file_if_exists(candidate)
     if file_contents:
         return file_contents
-
-    # Replace escaped newlines if necessary.
-    if "\\n" in candidate and "\n" not in candidate:
-        candidate = candidate.replace("\\n", "\n")
 
     if candidate.startswith("{") and candidate.rstrip().endswith("}"):
         return candidate
