@@ -23,7 +23,7 @@ backend_dir = os.path.dirname(script_dir)
 app_dir = os.path.join(backend_dir, 'app')
 sys.path.insert(0, app_dir)
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select, func
 from db.database import sessionLocal, init_connector, close_connector
 from db.models import Notification, AppointmentRequest, Appointment
 
@@ -37,6 +37,16 @@ async def clear_appointments():
             print("=" * 80)
             print("CLEARING APPOINTMENT DATA FROM DATABASE")
             print("=" * 80)
+            print()
+            
+            # Check current counts before deletion
+            print("Checking current data counts...")
+            notifications_count = await session.scalar(select(func.count()).select_from(Notification))
+            requests_count = await session.scalar(select(func.count()).select_from(AppointmentRequest))
+            appointments_count = await session.scalar(select(func.count()).select_from(Appointment))
+            print(f"  - Notifications: {notifications_count}")
+            print(f"  - Appointment Requests: {requests_count}")
+            print(f"  - Appointments: {appointments_count}")
             print()
             
             # Step 1: Delete notifications first (they reference appointments and appointment_requests)
@@ -63,16 +73,34 @@ async def clear_appointments():
             # Commit the transaction
             await session.commit()
             
+            # Verify deletion
+            print("Verifying deletion...")
+            remaining_notifications = await session.scalar(select(func.count()).select_from(Notification))
+            remaining_requests = await session.scalar(select(func.count()).select_from(AppointmentRequest))
+            remaining_appointments = await session.scalar(select(func.count()).select_from(Appointment))
+            
+            print(f"  - Remaining Notifications: {remaining_notifications}")
+            print(f"  - Remaining Appointment Requests: {remaining_requests}")
+            print(f"  - Remaining Appointments: {remaining_appointments}")
+            print()
+            
             print("=" * 80)
             print("[SUCCESS] All appointment data has been cleared!")
-            print(f"   - Notifications: {notifications_deleted}")
-            print(f"   - Appointment Requests: {requests_deleted}")
-            print(f"   - Appointments: {appointments_deleted}")
+            print(f"   - Notifications deleted: {notifications_deleted}")
+            print(f"   - Appointment Requests deleted: {requests_deleted}")
+            print(f"   - Appointments deleted: {appointments_deleted}")
+            print()
+            if remaining_notifications == 0 and remaining_requests == 0 and remaining_appointments == 0:
+                print("[VERIFIED] All tables are now empty.")
+            else:
+                print("[WARNING] Some data may still remain in the tables.")
             print("=" * 80)
             
         except Exception as e:
             await session.rollback()
             print(f"[ERROR] Failed to clear appointment data: {e}")
+            import traceback
+            traceback.print_exc()
             raise
         finally:
             await session.close()

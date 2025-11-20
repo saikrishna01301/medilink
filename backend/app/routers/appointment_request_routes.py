@@ -294,81 +294,81 @@ async def update_appointment_request(
                     related_entity_id=appointment_record_id,
                 )
 
-        elif new_status == "rejected":
-            if request.appointment_id and current_status in {"pending"}:
-                appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
-                original_datetime = appointment.appointment_date if appointment else request.preferred_date
-                original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
-                await appointment_request_crud.update_appointment_request(
-                    session,
-                    request_id,
-                    status="confirmed",
-                    preferred_date=original_datetime,
-                    preferred_time_slot_start=original_time,
-                    notes=update_data.notes,
-                )
+            elif new_status == "rejected":
+                if request.appointment_id and current_status in {"pending"}:
+                    appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
+                    original_datetime = appointment.appointment_date if appointment else request.preferred_date
+                    original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="confirmed",
+                        preferred_date=original_datetime,
+                        preferred_time_slot_start=original_time,
+                        notes=update_data.notes,
+                    )
 
-                await notification_crud.create_notification(
-                    session,
-                    user_id=request.patient_user_id,
-                    type="appointment_confirmed",
-                    title="Reschedule Request Rejected",
-                    message=f"{doctor_name} has rejected your reschedule request. The appointment remains confirmed for its original time.",
-                    appointment_request_id=request_id,
-                    appointment_id=request.appointment_id,
-                    related_entity_type="appointment",
-                    related_entity_id=request.appointment_id,
-                )
-            else:
+                    await notification_crud.create_notification(
+                        session,
+                        user_id=request.patient_user_id,
+                        type="appointment_confirmed",
+                        title="Reschedule Request Rejected",
+                        message=f"{doctor_name} has rejected your reschedule request. The appointment remains confirmed for its original time.",
+                        appointment_request_id=request_id,
+                        appointment_id=request.appointment_id,
+                        related_entity_type="appointment",
+                        related_entity_id=request.appointment_id,
+                    )
+                else:
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status=new_status,
+                        notes=update_data.notes,
+                    )
+
+                    await notification_crud.create_notification(
+                        session,
+                        user_id=request.patient_user_id,
+                        type="appointment_rejected",
+                        title="Appointment Request Rejected",
+                        message=f"{doctor_name} has rejected your appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}",
+                        appointment_request_id=request_id,
+                        related_entity_type="appointment_request",
+                        related_entity_id=request_id,
+                    )
+
+            elif new_status == "doctor_suggested_alternative":
+                if not request.is_flexible and not request.appointment_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Patient did not allow alternative suggestions"
+                    )
+                if not update_data.suggested_date or not update_data.suggested_time_slot_start:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Suggested date and time slot are required when suggesting an alternative"
+                    )
+
                 await appointment_request_crud.update_appointment_request(
                     session,
                     request_id,
                     status=new_status,
+                    suggested_date=update_data.suggested_date,
+                    suggested_time_slot_start=update_data.suggested_time_slot_start,
                     notes=update_data.notes,
                 )
 
                 await notification_crud.create_notification(
                     session,
                     user_id=request.patient_user_id,
-                    type="appointment_rejected",
-                    title="Appointment Request Rejected",
-                    message=f"{doctor_name} has rejected your appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}",
+                    type="appointment_suggested",
+                    title="Alternative Time Suggested",
+                    message=f"{doctor_name} has suggested an alternative time: {update_data.suggested_date.strftime('%Y-%m-%d')} at {update_data.suggested_time_slot_start.strftime('%H:%M')}",
                     appointment_request_id=request_id,
                     related_entity_type="appointment_request",
                     related_entity_id=request_id,
                 )
-
-        elif new_status == "doctor_suggested_alternative":
-            if not request.is_flexible and not request.appointment_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Patient did not allow alternative suggestions"
-                )
-            if not update_data.suggested_date or not update_data.suggested_time_slot_start:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Suggested date and time slot are required when suggesting an alternative"
-                )
-
-            await appointment_request_crud.update_appointment_request(
-                session,
-                request_id,
-                status=new_status,
-                suggested_date=update_data.suggested_date,
-                suggested_time_slot_start=update_data.suggested_time_slot_start,
-                notes=update_data.notes,
-            )
-
-            await notification_crud.create_notification(
-                session,
-                user_id=request.patient_user_id,
-                type="appointment_suggested",
-                title="Alternative Time Suggested",
-                message=f"{doctor_name} has suggested an alternative time: {update_data.suggested_date.strftime('%Y-%m-%d')} at {update_data.suggested_time_slot_start.strftime('%H:%M')}",
-                appointment_request_id=request_id,
-                related_entity_type="appointment_request",
-                related_entity_id=request_id,
-            )
 
         elif has_patient_permission:
             if new_status == "patient_accepted_alternative":
@@ -459,23 +459,77 @@ async def update_appointment_request(
                     related_entity_id=appointment_ref_id,
                 )
 
-        elif new_status == "patient_rejected_alternative":
-            # Patient rejects the doctor's suggested alternative time
-            if current_status != "doctor_suggested_alternative":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Can only reject alternative when doctor has suggested one. Current status: {current_status}"
-                )
-            if request.appointment_id:
-                appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
-                original_datetime = appointment.appointment_date if appointment else request.preferred_date
-                original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
+            elif new_status == "patient_rejected_alternative":
+                # Patient rejects the doctor's suggested alternative time
+                if current_status != "doctor_suggested_alternative":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Can only reject alternative when doctor has suggested one. Current status: {current_status}"
+                    )
+                if request.appointment_id:
+                    appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
+                    original_datetime = appointment.appointment_date if appointment else request.preferred_date
+                    original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="confirmed",
+                        preferred_date=original_datetime,
+                        preferred_time_slot_start=original_time,
+                        suggested_date=None,
+                        suggested_time_slot_start=None,
+                        notes=update_data.notes,
+                    )
+
+                    await notification_crud.create_notification(
+                        session,
+                        user_id=request.doctor_user_id,
+                        type="appointment_confirmed",
+                        title="Patient kept original appointment time",
+                        message=f"{patient_name} has declined the suggested alternative. The appointment remains confirmed for its original time.",
+                        appointment_request_id=request_id,
+                        appointment_id=request.appointment_id,
+                        related_entity_type="appointment",
+                        related_entity_id=request.appointment_id,
+                    )
+                else:
+                    # Update request status to "cancelled"
+                    await appointment_request_crud.update_appointment_request(
+                        session,
+                        request_id,
+                        status="cancelled",
+                        notes=update_data.notes,
+                    )
+
+                    await notification_crud.create_notification(
+                        session,
+                        user_id=request.doctor_user_id,
+                        type="appointment_cancelled",
+                        title="Alternative Time Rejected",
+                        message=f"{patient_name} has rejected your suggested alternative time. The appointment request has been cancelled.",
+                        appointment_request_id=request_id,
+                        related_entity_type="appointment_request",
+                        related_entity_id=request_id,
+                    )
+
+            elif new_status == "pending":
+                if current_status != "confirmed":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Reschedule requests can only be made for confirmed appointments"
+                    )
+                if not update_data.preferred_date or not update_data.preferred_time_slot_start:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Preferred date and time are required to request a reschedule"
+                    )
+
                 await appointment_request_crud.update_appointment_request(
                     session,
                     request_id,
-                    status="confirmed",
-                    preferred_date=original_datetime,
-                    preferred_time_slot_start=original_time,
+                    status="pending",
+                    preferred_date=update_data.preferred_date,
+                    preferred_time_slot_start=update_data.preferred_time_slot_start,
                     suggested_date=None,
                     suggested_time_slot_start=None,
                     notes=update_data.notes,
@@ -484,113 +538,66 @@ async def update_appointment_request(
                 await notification_crud.create_notification(
                     session,
                     user_id=request.doctor_user_id,
-                    type="appointment_confirmed",
-                    title="Patient kept original appointment time",
-                    message=f"{patient_name} has declined the suggested alternative. The appointment remains confirmed for its original time.",
+                    type="appointment_request",
+                    title="Appointment Reschedule Requested",
+                    message=f"{patient_name} requested to reschedule the appointment to {update_data.preferred_date.strftime('%Y-%m-%d')} at {update_data.preferred_time_slot_start.strftime('%H:%M')}.",
                     appointment_request_id=request_id,
                     appointment_id=request.appointment_id,
-                    related_entity_type="appointment",
-                    related_entity_id=request.appointment_id,
+                    related_entity_type="appointment_request",
+                    related_entity_id=request_id,
                 )
-            else:
+
+            elif new_status == "cancelled":
+                # Patient can cancel any appointment request (pending or confirmed)
+                cancellation_note = f"Cancelled by patient. {update_data.notes or ''}".strip()
+                
                 # Update request status to "cancelled"
                 await appointment_request_crud.update_appointment_request(
                     session,
                     request_id,
                     status="cancelled",
-                    notes=update_data.notes,
+                    notes=cancellation_note,
                 )
-
+                
+                # If there's a confirmed appointment, also cancel it
+                if request.appointment_id:
+                    appointment = await appointment_crud.get_appointment_by_id(
+                        session,
+                        request.appointment_id,
+                    )
+                    if appointment:
+                        await appointment_crud.update_appointment(
+                            session,
+                            request.appointment_id,
+                            status="cancelled",
+                            notes=cancellation_note,
+                        )
+                
+                # Notify doctor
                 await notification_crud.create_notification(
                     session,
                     user_id=request.doctor_user_id,
                     type="appointment_cancelled",
-                    title="Alternative Time Rejected",
-                    message=f"{patient_name} has rejected your suggested alternative time. The appointment request has been cancelled.",
+                    title="Appointment Cancelled by Patient",
+                    message=f"{patient_name} has cancelled the appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}.",
                     appointment_request_id=request_id,
-                    related_entity_type="appointment_request",
-                    related_entity_id=request_id,
+                    appointment_id=request.appointment_id,
+                    related_entity_type="appointment_request" if not request.appointment_id else "appointment",
+                    related_entity_id=request.appointment_id or request_id,
                 )
-
-        elif new_status == "pending":
-            if current_status != "confirmed":
+            
+            else:
+                # Patient cannot perform any other status updates
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Reschedule requests can only be made for confirmed appointments"
+                    detail=f"Invalid status update for patient: {new_status}. Patients can accept/reject doctor-suggested alternatives or cancel appointments."
                 )
-            if not update_data.preferred_date or not update_data.preferred_time_slot_start:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Preferred date and time are required to request a reschedule"
-                )
-
-            await appointment_request_crud.update_appointment_request(
-                session,
-                request_id,
-                status="pending",
-                preferred_date=update_data.preferred_date,
-                preferred_time_slot_start=update_data.preferred_time_slot_start,
-                suggested_date=None,
-                suggested_time_slot_start=None,
-                notes=update_data.notes,
-            )
-
-            await notification_crud.create_notification(
-                session,
-                user_id=request.doctor_user_id,
-                type="appointment_request",
-                title="Appointment Reschedule Requested",
-                message=f"{patient_name} requested to reschedule the appointment to {update_data.preferred_date.strftime('%Y-%m-%d')} at {update_data.preferred_time_slot_start.strftime('%H:%M')}.",
-                appointment_request_id=request_id,
-                appointment_id=request.appointment_id,
-                related_entity_type="appointment_request",
-                related_entity_id=request_id,
-            )
-        
-        elif new_status == "cancelled":
-            # Patient can cancel any appointment request (pending or confirmed)
-            cancellation_note = f"Cancelled by patient. {update_data.notes or ''}".strip()
-            
-            # Update request status to "cancelled"
-            await appointment_request_crud.update_appointment_request(
-                session,
-                request_id,
-                status="cancelled",
-                notes=cancellation_note,
-            )
-            
-            # If there's a confirmed appointment, also cancel it
-            if request.appointment_id:
-                appointment = await appointment_crud.get_appointment_by_id(
-                    session,
-                    request.appointment_id,
-                )
-                if appointment:
-                    await appointment_crud.update_appointment(
-                        session,
-                        request.appointment_id,
-                        status="cancelled",
-                        notes=cancellation_note,
-                    )
-            
-            # Notify doctor
-            await notification_crud.create_notification(
-                session,
-                user_id=request.doctor_user_id,
-                type="appointment_cancelled",
-                title="Appointment Cancelled by Patient",
-                message=f"{patient_name} has cancelled the appointment request for {request.preferred_date.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}.",
-                appointment_request_id=request_id,
-                appointment_id=request.appointment_id,
-                related_entity_type="appointment_request" if not request.appointment_id else "appointment",
-                related_entity_id=request.appointment_id or request_id,
-            )
         
         else:
-            # Patient cannot perform any other status updates
+            # User doesn't have permission to update this appointment request
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status update for patient: {new_status}. Patients can accept/reject doctor-suggested alternatives or cancel appointments."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this appointment request"
             )
 
         updated_request = await appointment_request_crud.get_appointment_request_by_id(
