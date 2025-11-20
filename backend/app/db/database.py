@@ -17,9 +17,15 @@ from db.models import (
     PatientFile,
 )
 from core import config
+from core.gcp_credentials import ensure_application_default_credentials
 import asyncpg
 import asyncio
 from google.cloud.sql.connector import Connector
+
+# Ensure ADC is available before connector initialization
+ensure_application_default_credentials(
+    config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
+)
 
 # Global connector instance
 connector: Connector = None

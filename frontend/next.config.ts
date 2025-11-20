@@ -1,4 +1,16 @@
 import type { NextConfig } from "next";
+import fs from "fs";
+import path from "path";
+import dotenv from "dotenv";
+
+const backendEnvPath = path.resolve(__dirname, "../backend/.env");
+if (fs.existsSync(backendEnvPath)) {
+  dotenv.config({ path: backendEnvPath, override: false });
+}
+
+if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.GOOGLE_MAPS_API_KEY) {
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+}
 
 /**
  * Keep two separate environment variables for API access:

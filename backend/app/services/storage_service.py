@@ -1,13 +1,18 @@
 """
 GCP Cloud Storage service for file upload/download operations
 """
-import os
-from typing import Optional, BinaryIO
+import asyncio
+from typing import Optional
+
+from fastapi import HTTPException, UploadFile, status
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
+
 from core import config
-import asyncio
-from fastapi import UploadFile, HTTPException, status
+from core.gcp_credentials import (
+    build_service_account_credentials,
+    ensure_application_default_credentials,
+)
 
 
 class StorageService:
@@ -32,26 +37,33 @@ class StorageService:
         
         # Initialize storage client
         try:
-            if config.USE_DEFAULT_CREDENTIALS:
-                # Use default credentials (for GCP environments)
-                self.client = storage.Client(project=self.project_id)
-            elif config.GCP_STORAGE_KEY_FILE and os.path.exists(config.GCP_STORAGE_KEY_FILE):
-                # Use service account key file
-                print(f"Using GCP service account key file: {config.GCP_STORAGE_KEY_FILE}")
-                self.client = storage.Client.from_service_account_json(
-                    config.GCP_STORAGE_KEY_FILE,
-                    project=self.project_id
+            credentials = build_service_account_credentials(
+                config.GCP_STORAGE_KEY_JSON,
+                config.GCP_STORAGE_KEY_FILE,
+            )
+
+            if credentials:
+                self.client = storage.Client(
+                    project=self.project_id,
+                    credentials=credentials,
                 )
-            else:
-                # Try default credentials as fallback
-                print("Attempting to use default GCP credentials...")
+            elif config.USE_DEFAULT_CREDENTIALS or config.GOOGLE_APPLICATION_CREDENTIALS_JSON:
+                ensure_application_default_credentials(
+                    config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
+                    config.GCP_STORAGE_KEY_FILE,
+                )
                 self.client = storage.Client(project=self.project_id)
+            else:
+                raise ValueError(
+                    "GCP storage credentials not configured. "
+                    "Set GCP_STORAGE_KEY_JSON (preferred), provide GCP_STORAGE_KEY_FILE, "
+                    "or enable USE_DEFAULT_CREDENTIALS along with GOOGLE_APPLICATION_CREDENTIALS_JSON."
+                )
         except Exception as e:
             raise ValueError(
                 f"Failed to initialize GCP Storage client: {str(e)}. "
-                f"Please ensure GCP credentials are properly configured. "
-                f"Set GCP_STORAGE_KEY_FILE to path of service account JSON file, "
-                f"or set USE_DEFAULT_CREDENTIALS=true to use default credentials."
+                "Please ensure GCP credentials are properly configured. "
+                "Provide GCP_STORAGE_KEY_JSON (recommended) or set USE_DEFAULT_CREDENTIALS=true."
             ) from e
         
         self.bucket = None

@@ -9,6 +9,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 from core import config
+from core.gcp_credentials import build_service_account_credentials
 
 SERVICE_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 _cached_credentials: Optional[service_account.Credentials] = None
@@ -17,17 +18,22 @@ _cached_credentials: Optional[service_account.Credentials] = None
 def _require_service_credentials() -> service_account.Credentials:
     global _cached_credentials
 
-    if not config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google service account credentials path not configured.",
-        )
-
     if _cached_credentials is None:
-        _cached_credentials = service_account.Credentials.from_service_account_file(
+        credentials = build_service_account_credentials(
+            config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON,
             config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH,
+            config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
             scopes=SERVICE_SCOPES,
         )
+
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google service account credentials not configured. "
+                "Provide GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON or GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH.",
+            )
+
+        _cached_credentials = credentials
     return _cached_credentials
 
 

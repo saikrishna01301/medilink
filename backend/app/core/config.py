@@ -27,6 +27,7 @@ class config(BaseSettings):
     GCP_BUCKET_NAME: str = os.getenv("GCP_BUCKET_NAME", "")
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
     GCP_STORAGE_KEY_FILE: str = os.getenv("GCP_STORAGE_KEY_FILE", "")  # Path to service account JSON key file
+    GCP_STORAGE_KEY_JSON: str = os.getenv("GCP_STORAGE_KEY_JSON", "")  # Inline service account JSON or base64
     # If key file path is not provided, will use default credentials
     USE_DEFAULT_CREDENTIALS: bool = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
@@ -37,6 +38,10 @@ class config(BaseSettings):
     # Google Calendar (Service Account)
     GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH: str = os.getenv(
         "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH",
+        "",
+    )
+    GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: str = os.getenv(
+        "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON",
         "",
     )
     GOOGLE_SERVICE_ACCOUNT_CALENDAR_ID: str = os.getenv(
@@ -50,6 +55,10 @@ class config(BaseSettings):
 
     # Google Maps API Configuration
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: str = os.getenv(
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+        "",
+    )
     
     # Redis Configuration
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")

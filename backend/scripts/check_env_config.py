@@ -28,14 +28,20 @@ print("=" * 60)
 gcp_bucket_name = os.getenv("GCP_BUCKET_NAME", "")
 gcp_project_id = os.getenv("GCP_PROJECT_ID", "")
 gcp_storage_key_file = os.getenv("GCP_STORAGE_KEY_FILE", "")
+gcp_storage_key_json = os.getenv("GCP_STORAGE_KEY_JSON", "")
 use_default_credentials = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
 print(f"\n1. GCP_BUCKET_NAME: {gcp_bucket_name if gcp_bucket_name else '[X] NOT SET'}")
 print(f"2. GCP_PROJECT_ID: {gcp_project_id if gcp_project_id else '[X] NOT SET'}")
 print(f"3. USE_DEFAULT_CREDENTIALS: {use_default_credentials}")
 
+if gcp_storage_key_json:
+    print("4. GCP_STORAGE_KEY_JSON: [OK] Inline secret detected")
+else:
+    print("4. GCP_STORAGE_KEY_JSON: [ ] NOT PROVIDED")
+
 if gcp_storage_key_file:
-    print(f"4. GCP_STORAGE_KEY_FILE: {gcp_storage_key_file}")
+    print(f"5. GCP_STORAGE_KEY_FILE: {gcp_storage_key_file}")
     key_file_path = Path(gcp_storage_key_file)
     if key_file_path.exists():
         print(f"   [OK] Key file exists at: {key_file_path.absolute()}")
@@ -48,11 +54,11 @@ if gcp_storage_key_file:
         else:
             print(f"   [X] Key file NOT FOUND at: {key_file_path.absolute()}")
 else:
-    print(f"4. GCP_STORAGE_KEY_FILE: [X] NOT SET")
+    print("5. GCP_STORAGE_KEY_FILE: [ ] NOT SET")
 
 # Check for key files in root directory
 root_dir = backend_dir.parent
-print(f"\n5. Checking for key files in project root ({root_dir}):")
+print(f"\n6. Checking for key files in project root ({root_dir}):")
 key_files = ["gcp-bucket-key.json", "gcp-key.json"]
 for key_file in key_files:
     key_path = root_dir / key_file
@@ -76,12 +82,14 @@ if not gcp_project_id:
     all_ok = False
 
 if not use_default_credentials:
-    if not gcp_storage_key_file:
-        print("[X] Either GCP_STORAGE_KEY_FILE must be set or USE_DEFAULT_CREDENTIALS=true")
+    if not gcp_storage_key_json and not gcp_storage_key_file:
+        print("[X] Provide either GCP_STORAGE_KEY_JSON or GCP_STORAGE_KEY_FILE (or set USE_DEFAULT_CREDENTIALS=true)")
         all_ok = False
-    elif not Path(gcp_storage_key_file).exists() and not (backend_dir / gcp_storage_key_file).exists():
-        print("[X] GCP_STORAGE_KEY_FILE points to a non-existent file")
-        all_ok = False
+    elif gcp_storage_key_file:
+        file_path = Path(gcp_storage_key_file)
+        if not file_path.exists() and not (backend_dir / gcp_storage_key_file).exists():
+            print("[X] GCP_STORAGE_KEY_FILE points to a non-existent file")
+            all_ok = False
 
 if all_ok:
     print("[OK] All required configuration is set!")
@@ -92,7 +100,9 @@ else:
     print("\nExample .env configuration:")
     print("  GCP_BUCKET_NAME=your-bucket-name")
     print("  GCP_PROJECT_ID=your-project-id")
-    print("  GCP_STORAGE_KEY_FILE=../gcp-bucket-key.json")
+    print("  GCP_STORAGE_KEY_JSON='{\"type\":\"service_account\",...}'")
+    print("  # or")
+    print("  # GCP_STORAGE_KEY_FILE=../gcp-bucket-key.json")
     print("  USE_DEFAULT_CREDENTIALS=false")
 
 sys.exit(0 if all_ok else 1)
