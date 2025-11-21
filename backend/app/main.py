@@ -1,3 +1,6 @@
+import os
+from typing import List
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db import init_db
@@ -19,12 +22,42 @@ from services.redis_service import get_redis_client, close_redis_client
 
 app = FastAPI()
 
-# --- CORS CONFIGURATION (FIXES THE CROSS-ORIGIN BLOCK) ---
-origins = [
+DEFAULT_CORS_ORIGINS = [
     "http://localhost",
-    "http://localhost:3000",  # Add your frontend's development URL here
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Cloudflare tunnel / production domain (HTTPS)
+    "https://medilink.virtual-viking.dev",
 ]
+
+
+def _parse_env_origins(raw_value: str | None) -> List[str]:
+    """Parse CORS origins from a comma-separated env var."""
+    if not raw_value:
+        return []
+
+    parsed: List[str] = []
+    for origin in raw_value.split(","):
+        normalized = origin.strip().rstrip("/")
+        if normalized:
+            parsed.append(normalized)
+    return parsed
+
+
+def _build_allowed_origins() -> List[str]:
+    env_origins = _parse_env_origins(os.getenv("CORS_ALLOW_ORIGINS"))
+    combined = DEFAULT_CORS_ORIGINS + env_origins
+    # Preserve ordering while removing duplicates
+    seen = set()
+    deduped: List[str] = []
+    for origin in combined:
+        if origin not in seen:
+            seen.add(origin)
+            deduped.append(origin)
+    return deduped
+
+
+origins = _build_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,
