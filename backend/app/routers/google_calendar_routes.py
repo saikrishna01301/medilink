@@ -139,19 +139,35 @@ async def list_calendar_events(
     }
 
     if include_holidays:
-        holidays = await fetch_holiday_events(
+        try:
+            holidays = await fetch_holiday_events(
+                time_min=time_min,
+                time_max=time_max,
+                max_results=max_results,
+            )
+            response["holidays"] = [_normalize_event(event) for event in holidays]
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
+            # Log error but don't fail the entire request
+            print(f"Warning: Failed to fetch holiday events: {e}")
+            response["holidays"] = []
+
+    try:
+        service_events = await fetch_service_calendar_events(
             time_min=time_min,
             time_max=time_max,
             max_results=max_results,
         )
-        response["holidays"] = [_normalize_event(event) for event in holidays]
-
-    service_events = await fetch_service_calendar_events(
-        time_min=time_min,
-        time_max=time_max,
-        max_results=max_results,
-    )
-    response["service_events"] = [_normalize_event(event) for event in service_events]
+        response["service_events"] = [_normalize_event(event) for event in service_events]
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log error but don't fail the entire request - return empty service events
+        print(f"Warning: Failed to fetch service calendar events: {e}")
+        response["service_events"] = []
 
     return response
 

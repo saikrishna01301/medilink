@@ -1,9 +1,14 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 from typing import Optional
 
 load_dotenv()
+
+# Get the backend directory (where this config file is located)
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = BACKEND_DIR.parent
 
 
 class config(BaseSettings):
@@ -26,8 +31,10 @@ class config(BaseSettings):
     # GCP Cloud Storage Configuration
     GCP_BUCKET_NAME: str = os.getenv("GCP_BUCKET_NAME", "")
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
-    GCP_STORAGE_KEY_FILE: str = os.getenv("GCP_STORAGE_KEY_FILE", "")  # Path to service account JSON key file
-    GCP_STORAGE_KEY_JSON: str = os.getenv("GCP_STORAGE_KEY_JSON", "")  # Inline service account JSON or base64
+    # Default to gcp-bucket-key.json in project root if not specified
+    _default_storage_key = str(PROJECT_ROOT / "gcp-bucket-key.json") if (PROJECT_ROOT / "gcp-bucket-key.json").exists() else ""
+    GCP_STORAGE_KEY_FILE: str = os.getenv("GCP_STORAGE_KEY_FILE", _default_storage_key)  # Path to service account JSON key file
+    GCP_STORAGE_KEY_JSON: str = os.getenv("GCP_STORAGE_KEY_JSON", "")  # Inline service account JSON or base64 (fallback)
     # If key file path is not provided, will use default credentials
     USE_DEFAULT_CREDENTIALS: bool = os.getenv("USE_DEFAULT_CREDENTIALS", "false").lower() == "true"
 
@@ -36,9 +43,12 @@ class config(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "14"))
 
     # Google Calendar (Service Account)
+    # Default to gcp-key.json in project root if not specified (service account file)
+    # Note: medilink-calender-oauth.json is OAuth client credentials, not a service account
+    _default_calendar_key = str(PROJECT_ROOT / "gcp-key.json") if (PROJECT_ROOT / "gcp-key.json").exists() else ""
     GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH: str = os.getenv(
         "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH",
-        "",
+        _default_calendar_key,
     )
     GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON: str = os.getenv(
         "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON",
@@ -55,6 +65,12 @@ class config(BaseSettings):
 
     # Google Maps API Configuration
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    # Default to gcp-key.json in project root if not specified
+    _default_gcp_key = str(PROJECT_ROOT / "gcp-key.json") if (PROJECT_ROOT / "gcp-key.json").exists() else ""
+    GOOGLE_APPLICATION_CREDENTIALS_FILE: str = os.getenv(
+        "GOOGLE_APPLICATION_CREDENTIALS_FILE",
+        _default_gcp_key,
+    )
     GOOGLE_APPLICATION_CREDENTIALS_JSON: str = os.getenv(
         "GOOGLE_APPLICATION_CREDENTIALS_JSON",
         "",

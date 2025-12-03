@@ -37,9 +37,10 @@ class StorageService:
         
         # Initialize storage client
         try:
+            # Prioritize file path over JSON string
             credentials = build_service_account_credentials(
-                config.GCP_STORAGE_KEY_JSON,
                 config.GCP_STORAGE_KEY_FILE,
+                config.GCP_STORAGE_KEY_JSON,
             )
 
             if credentials:
@@ -47,23 +48,25 @@ class StorageService:
                     project=self.project_id,
                     credentials=credentials,
                 )
-            elif config.USE_DEFAULT_CREDENTIALS or config.GOOGLE_APPLICATION_CREDENTIALS_JSON:
+            elif config.USE_DEFAULT_CREDENTIALS or config.GOOGLE_APPLICATION_CREDENTIALS_FILE or config.GOOGLE_APPLICATION_CREDENTIALS_JSON:
+                # Prioritize file path over JSON string
                 ensure_application_default_credentials(
-                    config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
+                    config.GOOGLE_APPLICATION_CREDENTIALS_FILE,
                     config.GCP_STORAGE_KEY_FILE,
+                    config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
                 )
                 self.client = storage.Client(project=self.project_id)
             else:
                 raise ValueError(
                     "GCP storage credentials not configured. "
-                    "Set GCP_STORAGE_KEY_JSON (preferred), provide GCP_STORAGE_KEY_FILE, "
-                    "or enable USE_DEFAULT_CREDENTIALS along with GOOGLE_APPLICATION_CREDENTIALS_JSON."
+                    "Set GCP_STORAGE_KEY_FILE (preferred), provide GCP_STORAGE_KEY_JSON, "
+                    "or enable USE_DEFAULT_CREDENTIALS along with GOOGLE_APPLICATION_CREDENTIALS_FILE."
                 )
         except Exception as e:
             raise ValueError(
                 f"Failed to initialize GCP Storage client: {str(e)}. "
                 "Please ensure GCP credentials are properly configured. "
-                "Provide GCP_STORAGE_KEY_JSON (recommended) or set USE_DEFAULT_CREDENTIALS=true."
+                "Provide GCP_STORAGE_KEY_FILE (recommended) or set USE_DEFAULT_CREDENTIALS=true."
             ) from e
         
         self.bucket = None

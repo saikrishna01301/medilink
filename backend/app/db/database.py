@@ -23,7 +23,9 @@ import asyncio
 from google.cloud.sql.connector import Connector
 
 # Ensure ADC is available before connector initialization
+# Prioritize file path over JSON string
 ensure_application_default_credentials(
+    config.GOOGLE_APPLICATION_CREDENTIALS_FILE,
     config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
 )
 

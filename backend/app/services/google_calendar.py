@@ -19,9 +19,11 @@ def _require_service_credentials() -> service_account.Credentials:
     global _cached_credentials
 
     if _cached_credentials is None:
+        # Prioritize file paths over JSON strings
         credentials = build_service_account_credentials(
-            config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON,
             config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH,
+            config.GOOGLE_APPLICATION_CREDENTIALS_FILE,
+            config.GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON,
             config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
             scopes=SERVICE_SCOPES,
         )
@@ -30,7 +32,7 @@ def _require_service_credentials() -> service_account.Credentials:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Google service account credentials not configured. "
-                "Provide GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON or GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH.",
+                "Provide GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_PATH (preferred) or GOOGLE_SERVICE_ACCOUNT_CREDENTIALS_JSON.",
             )
 
         _cached_credentials = credentials
@@ -44,24 +46,56 @@ async def _list_events(
     time_max: Optional[str],
     max_results: int,
 ) -> list[Dict[str, Any]]:
-    credentials = _require_service_credentials()
+    try:
+        credentials = _require_service_credentials()
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load Google service account credentials: {str(e)}",
+        ) from e
 
     def _call() -> list[Dict[str, Any]]:
-        service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
-        params: Dict[str, Any] = {
-            "calendarId": calendar_id,
-            "singleEvents": True,
-            "orderBy": "startTime",
-            "maxResults": max_results,
-        }
-        if time_min:
-            params["timeMin"] = time_min
-        if time_max:
-            params["timeMax"] = time_max
-        response = service.events().list(**params).execute()
-        return response.get("items", [])
+        try:
+            service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
+            params: Dict[str, Any] = {
+                "calendarId": calendar_id,
+                "singleEvents": True,
+                "orderBy": "startTime",
+                "maxResults": max_results,
+            }
+            if time_min:
+                params["timeMin"] = time_min
+            if time_max:
+                params["timeMax"] = time_max
+            response = service.events().list(**params).execute()
+            return response.get("items", [])
+        except Exception as e:
+            error_msg = str(e)
+            # Provide more helpful error messages
+            if "insufficient authentication scopes" in error_msg.lower():
+                raise ValueError(
+                    f"Service account does not have calendar access. "
+                    f"Please ensure the service account has 'Calendar API' enabled and proper permissions."
+                ) from e
+            elif "not found" in error_msg.lower() or "404" in error_msg:
+                raise ValueError(
+                    f"Calendar not found: {calendar_id}. "
+                    f"Please verify the calendar ID is correct and the service account has access."
+                ) from e
+            else:
+                raise ValueError(f"Google Calendar API error: {error_msg}") from e
 
-    return await asyncio.to_thread(_call)
+    try:
+        return await asyncio.to_thread(_call)
+    except ValueError as e:
+        # Convert ValueError to HTTPException for better API error handling
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        ) from e
 
 
 async def fetch_service_calendar_events(

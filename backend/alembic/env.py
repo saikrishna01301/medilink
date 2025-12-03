@@ -46,7 +46,9 @@ try:
         hasattr(app_config, 'DB_USER') and app_config.DB_USER):
         
         # Ensure ADC is available
+        # Prioritize file path over JSON string
         ensure_application_default_credentials(
+            app_config.GOOGLE_APPLICATION_CREDENTIALS_FILE,
             app_config.GOOGLE_APPLICATION_CREDENTIALS_JSON,
         )
         
