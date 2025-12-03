@@ -219,6 +219,10 @@ async def update_appointment_request(
             current_status = str(request.status or "").strip()
 
         if has_doctor_permission:
+            # Determine if this is a reschedule request (has appointment_id and was confirmed)
+            is_reschedule_request = request.appointment_id is not None and current_status == "pending" and request.appointment_id > 0
+            is_initial_booking = request.appointment_id is None
+
             if new_status == "accepted":
                 if not request.preferred_date or not request.preferred_time_slot_start:
                     raise HTTPException(
@@ -234,14 +238,23 @@ async def update_appointment_request(
                 if request.preferred_date.tzinfo:
                     combined_datetime = combined_datetime.replace(tzinfo=request.preferred_date.tzinfo)
 
-                if request.appointment_id:
-                    # Approving a reschedule request - update existing appointment
+                if is_reschedule_request:
+                    # RESCHEDULING: Doctor accepts reschedule request
+                    appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
+                    if not appointment:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Appointment not found"
+                        )
+                    
+                    # Update appointment time and increment reschedule count
                     await appointment_crud.update_appointment(
                         session,
                         request.appointment_id,
                         appointment_date=combined_datetime,
                         status="scheduled",
-                        notes=request.notes,
+                        notes=update_data.notes or request.notes,
+                        reschedule_count=appointment.reschedule_count + 1,
                     )
                     await appointment_request_crud.update_appointment_request(
                         session,
@@ -258,6 +271,7 @@ async def update_appointment_request(
                     notification_title = "Appointment Reschedule Confirmed"
                     notification_message = f"{doctor_name} approved your reschedule request for {combined_datetime.strftime('%Y-%m-%d')} at {request.preferred_time_slot_start.strftime('%H:%M')}."
                 else:
+                    # INITIAL BOOKING: Doctor accepts initial appointment request
                     appointment = await appointment_crud.create_appointment(
                         session,
                         patient_user_id=request.patient_user_id,
@@ -273,7 +287,7 @@ async def update_appointment_request(
                     await appointment_request_crud.update_appointment_request(
                         session,
                         request_id,
-                        status=new_status,
+                        status="confirmed",
                         appointment_id=appointment.appointment_id,
                         notes=update_data.notes,
                     )
@@ -295,16 +309,25 @@ async def update_appointment_request(
                 )
 
             elif new_status == "rejected":
-                if request.appointment_id and current_status in {"pending"}:
+                if is_reschedule_request:
+                    # RESCHEDULING: Doctor rejects reschedule request - appointment stays same
                     appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
-                    original_datetime = appointment.appointment_date if appointment else request.preferred_date
-                    original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
+                    if not appointment:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Appointment not found"
+                        )
+                    original_datetime = appointment.appointment_date
+                    original_time = appointment.appointment_date.time()
+                    
                     await appointment_request_crud.update_appointment_request(
                         session,
                         request_id,
                         status="confirmed",
                         preferred_date=original_datetime,
                         preferred_time_slot_start=original_time,
+                        suggested_date=None,
+                        suggested_time_slot_start=None,
                         notes=update_data.notes,
                     )
 
@@ -320,6 +343,7 @@ async def update_appointment_request(
                         related_entity_id=request.appointment_id,
                     )
                 else:
+                    # INITIAL BOOKING: Doctor rejects initial appointment request
                     await appointment_request_crud.update_appointment_request(
                         session,
                         request_id,
@@ -339,11 +363,15 @@ async def update_appointment_request(
                     )
 
             elif new_status == "doctor_suggested_alternative":
-                if not request.is_flexible and not request.appointment_id:
+                # Doctor suggests alternative time
+                if is_initial_booking and not request.is_flexible:
+                    # INITIAL BOOKING: Can only suggest if patient is flexible
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Patient did not allow alternative suggestions"
+                        detail="Patient did not allow alternative suggestions for initial booking"
                     )
+                # For rescheduling, doctor can always suggest alternative (no is_flexible check needed)
+                
                 if not update_data.suggested_date or not update_data.suggested_time_slot_start:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -359,13 +387,15 @@ async def update_appointment_request(
                     notes=update_data.notes,
                 )
 
+                context_msg = "for rescheduling" if is_reschedule_request else "for your appointment request"
                 await notification_crud.create_notification(
                     session,
                     user_id=request.patient_user_id,
                     type="appointment_suggested",
                     title="Alternative Time Suggested",
-                    message=f"{doctor_name} has suggested an alternative time: {update_data.suggested_date.strftime('%Y-%m-%d')} at {update_data.suggested_time_slot_start.strftime('%H:%M')}",
+                    message=f"{doctor_name} has suggested an alternative time {context_msg}: {update_data.suggested_date.strftime('%Y-%m-%d')} at {update_data.suggested_time_slot_start.strftime('%H:%M')}",
                     appointment_request_id=request_id,
+                    appointment_id=request.appointment_id,
                     related_entity_type="appointment_request",
                     related_entity_id=request_id,
                 )
@@ -394,20 +424,24 @@ async def update_appointment_request(
                 if request.suggested_date.tzinfo:
                     combined_datetime = combined_datetime.replace(tzinfo=request.suggested_date.tzinfo)
                 
-                if request.appointment_id:
-                    # Update existing appointment (reschedule flow)
+                is_reschedule_flow = request.appointment_id is not None
+                
+                if is_reschedule_flow:
+                    # RESCHEDULING: Update existing appointment (reschedule flow)
                     appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
                     if not appointment:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Appointment with ID {request.appointment_id} not found"
                         )
+                    # Increment reschedule count when patient accepts doctor's alternative in reschedule
                     await appointment_crud.update_appointment(
                         session,
                         request.appointment_id,
                         appointment_date=combined_datetime,
                         status=appointment.status or "scheduled",
                         notes=request.notes,
+                        reschedule_count=appointment.reschedule_count + 1,
                     )
                     final_datetime = combined_datetime
                     await appointment_request_crud.update_appointment_request(
@@ -421,7 +455,7 @@ async def update_appointment_request(
                     )
                     appointment_ref_id = request.appointment_id
                 else:
-                    # Create appointment with suggested time
+                    # INITIAL BOOKING: Create appointment with suggested time
                     appointment = await appointment_crud.create_appointment(
                         session,
                         patient_user_id=request.patient_user_id,
@@ -447,12 +481,13 @@ async def update_appointment_request(
                     )
 
                 # Notify doctor
+                context_msg = "reschedule" if is_reschedule_flow else "appointment request"
                 await notification_crud.create_notification(
                     session,
                     user_id=request.doctor_user_id,
                     type="appointment_confirmed",
                     title="Appointment Confirmed",
-                    message=f"{patient_name} has accepted your suggested alternative time. Appointment confirmed for {request.suggested_date.strftime('%Y-%m-%d')} at {request.suggested_time_slot_start.strftime('%H:%M')}",
+                    message=f"{patient_name} has accepted your suggested alternative time for {context_msg}. Appointment confirmed for {request.suggested_date.strftime('%Y-%m-%d')} at {request.suggested_time_slot_start.strftime('%H:%M')}",
                     appointment_request_id=request_id,
                     appointment_id=appointment_ref_id,
                     related_entity_type="appointment",
@@ -466,10 +501,20 @@ async def update_appointment_request(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Can only reject alternative when doctor has suggested one. Current status: {current_status}"
                     )
-                if request.appointment_id:
+                
+                is_reschedule_flow = request.appointment_id is not None
+                
+                if is_reschedule_flow:
+                    # RESCHEDULING: Patient rejects alternative - keep original appointment time
                     appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
-                    original_datetime = appointment.appointment_date if appointment else request.preferred_date
-                    original_time = appointment.appointment_date.time() if appointment else request.preferred_time_slot_start
+                    if not appointment:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Appointment not found"
+                        )
+                    original_datetime = appointment.appointment_date
+                    original_time = appointment.appointment_date.time()
+                    
                     await appointment_request_crud.update_appointment_request(
                         session,
                         request_id,
@@ -486,14 +531,14 @@ async def update_appointment_request(
                         user_id=request.doctor_user_id,
                         type="appointment_confirmed",
                         title="Patient kept original appointment time",
-                        message=f"{patient_name} has declined the suggested alternative. The appointment remains confirmed for its original time.",
+                        message=f"{patient_name} has declined the suggested alternative for rescheduling. The appointment remains confirmed for its original time.",
                         appointment_request_id=request_id,
                         appointment_id=request.appointment_id,
                         related_entity_type="appointment",
                         related_entity_id=request.appointment_id,
                     )
                 else:
-                    # Update request status to "cancelled"
+                    # INITIAL BOOKING: Patient rejects alternative - cancel the request
                     await appointment_request_crud.update_appointment_request(
                         session,
                         request_id,
@@ -513,15 +558,35 @@ async def update_appointment_request(
                     )
 
             elif new_status == "pending":
+                # Patient requests reschedule
                 if current_status != "confirmed":
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Reschedule requests can only be made for confirmed appointments"
                     )
+                if not request.appointment_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Appointment ID is required for reschedule requests"
+                    )
                 if not update_data.preferred_date or not update_data.preferred_time_slot_start:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Preferred date and time are required to request a reschedule"
+                    )
+
+                # Check reschedule count (max 2 reschedules allowed)
+                appointment = await appointment_crud.get_appointment_by_id(session, request.appointment_id)
+                if not appointment:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Appointment not found"
+                    )
+                
+                if appointment.reschedule_count >= 2:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Maximum reschedule limit (2) has been reached for this appointment"
                     )
 
                 await appointment_request_crud.update_appointment_request(

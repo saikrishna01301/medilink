@@ -84,6 +84,7 @@ async def update_appointment(
     duration_minutes: Optional[int] = None,
     status: Optional[str] = None,
     notes: Optional[str] = None,
+    reschedule_count: Optional[int] = None,
 ) -> Optional[Appointment]:
     appointment = await get_appointment_by_id(session, appointment_id)
     if not appointment:
@@ -97,6 +98,8 @@ async def update_appointment(
         appointment.status = status
     if notes is not None:
         appointment.notes = notes
+    if reschedule_count is not None:
+        appointment.reschedule_count = reschedule_count
 
     await session.commit()
     await session.refresh(appointment)

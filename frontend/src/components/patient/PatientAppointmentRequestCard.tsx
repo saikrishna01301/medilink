@@ -207,15 +207,16 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
                                   request.suggested_time_slot_start;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 mb-4">
           {error}
         </div>
       )}
 
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Left Column - Appointment Details */}
+        <div className="flex-1 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             {getStatusBadge(request.status)}
           </div>
@@ -242,181 +243,175 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
               <p className="text-sm text-gray-600">{request.notes}</p>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Show alternative suggestion and action buttons */}
-      {isAlternativeSuggested && (
-        <div className="border-t border-gray-200 pt-3 space-y-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm font-medium text-blue-900 mb-1">Doctor Suggested Alternative Time:</p>
-            <p className="text-sm text-blue-700">
-              <span className="font-medium">
-                {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
-              </span>
-            </p>
-          </div>
-          <div className="flex flex-col md:flex-row gap-2">
-            <button
-              type="button"
-              onClick={handleAcceptAlternative}
-              disabled={isProcessing}
-              className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isProcessing ? "Processing..." : "Accept & Confirm"}
-            </button>
-            <button
-              type="button"
-              onClick={handleRejectAlternative}
-              disabled={isProcessing}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isProcessing ? "Processing..." : "Keep Original Time"}
-            </button>
+          {/* Show alternative suggestion */}
+          {isAlternativeSuggested && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm font-medium text-blue-900 mb-1">Doctor Suggested Alternative Time:</p>
+              <p className="text-sm text-blue-700">
+                <span className="font-medium">
+                  {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
+                </span>
+              </p>
+            </div>
+          )}
+
+          {/* Status messages */}
+          {request.status === "accepted" && (
+            <div>
+              <p className="text-sm text-green-600 font-medium">✓ Appointment Accepted by Doctor</p>
+              {request.appointment_id && (
+                <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
+              )}
+            </div>
+          )}
+
+          {request.status === "rejected" && (
+            <div>
+              <p className="text-sm text-red-600 font-medium">✗ Appointment Rejected by Doctor</p>
+            </div>
+          )}
+
+          {request.status === "confirmed" && (
+            <div>
+              <p className="text-sm text-green-600 font-medium">✓ Appointment Confirmed</p>
+              {request.suggested_date && request.suggested_time_slot_start && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Confirmed for {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
+                </p>
+              )}
+              {request.appointment_id && (
+                <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
+              )}
+            </div>
+          )}
+
+          {request.status === "pending" && request.appointment_id && (
+            <div>
+              <p className="text-sm text-yellow-700 font-medium">
+                Reschedule request sent. Awaiting doctor's response.
+              </p>
+            </div>
+          )}
+
+          {request.status === "cancelled" && (
+            <div>
+              <p className="text-sm text-gray-600 font-medium">✗ Appointment Cancelled</p>
+              <p className="text-xs text-gray-500 mt-1">The appointment request has been cancelled.</p>
+              {request.notes && request.notes.includes("Cancelled by patient") && (
+                <p className="text-xs text-gray-500 mt-1">Cancelled by patient</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Action Buttons and Reschedule UI */}
+        <div className="w-full md:w-64 flex-shrink-0 space-y-3">
+          {/* Alternative suggestion action buttons */}
+          {isAlternativeSuggested && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleAcceptAlternative}
+                disabled={isProcessing}
+                className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isProcessing ? "Processing..." : "Accept & Confirm"}
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectAlternative}
+                disabled={isProcessing}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isProcessing ? "Processing..." : "Keep Original Time"}
+              </button>
+            </div>
+          )}
+
+          {/* Reschedule UI for confirmed appointments */}
+          {request.status === "confirmed" && (
+            <div className="space-y-3">
+              {!showRescheduleForm ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRescheduleForm(true);
+                    if (!rescheduleDate && request.preferred_date) {
+                      setRescheduleDate(request.preferred_date.split("T")[0]);
+                    }
+                    if (!rescheduleTime && request.preferred_time_slot_start) {
+                      const [hours, minutes] = request.preferred_time_slot_start.split(":");
+                      setRescheduleTime(`${hours}:${minutes}`);
+                    }
+                  }}
+                  className="w-full rounded-lg border border-orange-600 px-4 py-2 text-sm font-medium text-orange-600 transition-colors hover:bg-orange-50"
+                >
+                  Request Reschedule
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      New Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={rescheduleDate}
+                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      New Time <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={rescheduleTime}
+                      onChange={(e) => setRescheduleTime(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRequestReschedule}
+                      disabled={isProcessing}
+                      className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isProcessing ? "Submitting..." : "Submit"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRescheduleForm(false);
+                        setRescheduleDate("");
+                        setRescheduleTime("");
+                      }}
+                      className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Cancel button - show for pending and confirmed appointments */}
+          {(request.status === "pending" || request.status === "confirmed" || request.status === "accepted" || request.status === "doctor_suggested_alternative") && (
             <button
               type="button"
               onClick={handleCancel}
               disabled={isProcessing}
-              className="flex-1 rounded-lg border-2 border-red-600 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-lg border-2 border-red-600 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isProcessing ? "Processing..." : "Cancel Appointment"}
+              {isProcessing ? "Cancelling..." : "Cancel Appointment"}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Status messages */}
-      {request.status === "accepted" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-green-600 font-medium">✓ Appointment Accepted by Doctor</p>
-          {request.appointment_id && (
-            <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
           )}
         </div>
-      )}
-
-      {request.status === "rejected" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-red-600 font-medium">✗ Appointment Rejected by Doctor</p>
-        </div>
-      )}
-
-      {request.status === "confirmed" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-green-600 font-medium">✓ Appointment Confirmed</p>
-          {request.suggested_date && request.suggested_time_slot_start && (
-            <p className="text-xs text-gray-600 mt-1">
-              Confirmed for {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
-            </p>
-          )}
-          {request.appointment_id && (
-            <p className="text-xs text-gray-500 mt-1">Appointment ID: {request.appointment_id}</p>
-          )}
-        </div>
-      )}
-
-      {request.status === "confirmed" && (
-        <div className="border-t border-gray-200 pt-3 space-y-3">
-          {!showRescheduleForm ? (
-            <button
-              type="button"
-              onClick={() => {
-                setShowRescheduleForm(true);
-                if (!rescheduleDate && request.preferred_date) {
-                  setRescheduleDate(request.preferred_date.split("T")[0]);
-                }
-                if (!rescheduleTime && request.preferred_time_slot_start) {
-                  const [hours, minutes] = request.preferred_time_slot_start.split(":");
-                  setRescheduleTime(`${hours}:${minutes}`);
-                }
-              }}
-              className="w-full rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
-            >
-              Request Reschedule
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    New Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={rescheduleDate}
-                    onChange={(e) => setRescheduleDate(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    New Time <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="time"
-                    value={rescheduleTime}
-                    onChange={(e) => setRescheduleTime(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleRequestReschedule}
-                  disabled={isProcessing}
-                  className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isProcessing ? "Submitting..." : "Submit Request"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRescheduleForm(false);
-                    setRescheduleDate("");
-                    setRescheduleTime("");
-                  }}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {request.status === "pending" && request.appointment_id && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-yellow-700 font-medium">
-            Reschedule request sent. Awaiting doctor's response.
-          </p>
-        </div>
-      )}
-
-      {request.status === "cancelled" && (
-        <div className="border-t border-gray-200 pt-3">
-          <p className="text-sm text-gray-600 font-medium">✗ Appointment Cancelled</p>
-          <p className="text-xs text-gray-500 mt-1">The appointment request has been cancelled.</p>
-          {request.notes && request.notes.includes("Cancelled by patient") && (
-            <p className="text-xs text-gray-500 mt-1">Cancelled by patient</p>
-          )}
-        </div>
-      )}
-
-      {/* Cancel button - show for pending and confirmed appointments */}
-      {(request.status === "pending" || request.status === "confirmed" || request.status === "accepted" || request.status === "doctor_suggested_alternative") && (
-        <div className="border-t border-gray-200 pt-3">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isProcessing}
-            className="w-full rounded-lg border-2 border-red-600 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isProcessing ? "Cancelling..." : "Cancel Appointment"}
-          </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
