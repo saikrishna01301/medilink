@@ -8,12 +8,12 @@
 gcp-key.json
 *-key.json
 service-account*.json
+medilink-saikrishna*.json
+*-credentials.json
 
 # OAuth credentials
 *oauth*.json
-
-# Documentation files
-*.md
+*client_secret*.json
 
 # Python
 __pycache__/
