@@ -302,7 +302,9 @@ export default function DoctorCalendarPage() {
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value, type, checked } = e.target;
+    const target = e.target;
+    const { name, value, type } = target;
+    const checked = target instanceof HTMLInputElement ? target.checked : false;
     setFormState((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -538,7 +540,7 @@ export default function DoctorCalendarPage() {
                     : formatAppointmentTime(raw as Appointment);
                 return (
                   <div
-                    key={`${type}-${(raw as any).id}-${start?.toISOString() ?? "all-day"}`}
+                    key={`${type}-${(raw as { id: string | number }).id}-${start?.toISOString() ?? "all-day"}`}
                     className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
                   >
                     <div className="flex items-center justify-between text-sm font-semibold text-slate-700">

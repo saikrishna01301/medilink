@@ -10,12 +10,14 @@ interface DoctorMapWidgetProps {
   onDoctorClick?: (doctor: DoctorListItem) => void;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
   interface Window {
     google: any;
     googleMapsScriptLoaded?: boolean;
   }
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Global promise to track script loading
 let googleMapsLoadPromise: Promise<void> | null = null;
@@ -27,8 +29,11 @@ export default function DoctorMapWidget({
   onDoctorClick,
 }: DoctorMapWidgetProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoWindowsRef = useRef<any[]>([]);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -149,8 +154,10 @@ export default function DoctorMapWidget({
       const map = mapInstanceRef.current;
 
       // Clear existing markers and info windows
-      markersRef.current.forEach((marker) => marker.setMap(null));
-      infoWindowsRef.current.forEach((iw) => iw.close());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      markersRef.current.forEach((marker: any) => marker.setMap(null));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      infoWindowsRef.current.forEach((iw: any) => iw.close());
       markersRef.current = [];
       infoWindowsRef.current = [];
 

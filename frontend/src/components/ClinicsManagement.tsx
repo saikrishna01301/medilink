@@ -452,7 +452,7 @@ export default function ClinicsManagement({ onUpdate }: ClinicsManagementProps) 
             {clinics.length === 0 ? (
               <div className="border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500">
                 <p>No clinics added yet.</p>
-                <p className="text-sm mt-2">Click "Add Clinic" to add your first location.</p>
+                <p className="text-sm mt-2">Click &quot;Add Clinic&quot; to add your first location.</p>
               </div>
             ) : (
               clinics.map((clinic, idx) => {

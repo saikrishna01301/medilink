@@ -335,6 +335,8 @@ export default function SettingsPage() {
           medical_license_number: updated.profile.medical_license_number || "",
           board_certifications: updated.profile.board_certifications || [],
           languages_spoken: updated.profile.languages_spoken || [],
+          accepting_new_patients: updated.profile.accepting_new_patients ?? false,
+          offers_virtual_visits: updated.profile.offers_virtual_visits ?? false,
         });
       }
       
@@ -543,7 +545,7 @@ export default function SettingsPage() {
         return {
           ...prev,
           profile: prev.profile
-            ? { ...prev.profile, photo_url: null }
+            ? { ...prev.profile, photo_url: undefined }
             : prev.profile,
         };
       });
@@ -1670,7 +1672,7 @@ export default function SettingsPage() {
                         </div>
                         {specialtySearchQuery && filteredSpecialties.length === 0 && availableSpecialties.length > 0 && (
                           <p className="text-xs text-gray-500 mt-1">
-                            No specialties found matching "{specialtySearchQuery}"
+                            No specialties found matching &quot;{specialtySearchQuery}&quot;
                           </p>
                         )}
                         {availableSpecialties.length === 0 && !loadingSpecialties && (

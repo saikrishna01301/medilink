@@ -90,7 +90,7 @@ const logApiBase = () => {
   }
   const baseInfo = resolveApiBase();
   const key = `${baseInfo.mode}:${baseInfo.base}`;
-  const globalObj = window as any;
+  const globalObj = window as unknown as { __medilinkLoggedApiBase?: string };
   if (globalObj.__medilinkLoggedApiBase !== key) {
     console.info("🌐 MediLink API base:", baseInfo);
     globalObj.__medilinkLoggedApiBase = key;
@@ -188,10 +188,7 @@ export interface Address {
 
 // API Error type
 export class APIError extends Error {
-  constructor(
-    public status: number,
-    public detail: string
-  ) {
+  constructor(public status: number, public detail: string) {
     super(detail);
     this.name = "APIError";
   }
@@ -259,17 +256,17 @@ const apiFetch = async <T = unknown>(
   // Set a longer timeout for file uploads
   const isFileUpload = init.method === "POST" && init.body instanceof FormData;
   const timeout = isFileUpload ? 300000 : 30000; // 5 minutes for uploads, 30 seconds otherwise
-  
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   // For FormData, we MUST NOT set Content-Type header - browser sets it automatically with boundary
   const fetchOptions: RequestInit = {
     credentials: credentials ?? "include",
     signal: controller.signal,
     ...init,
   };
-  
+
   // Remove Content-Type header if body is FormData (browser will set it with boundary)
   if (init.body instanceof FormData) {
     if (fetchOptions.headers) {
@@ -281,7 +278,7 @@ const apiFetch = async <T = unknown>(
       fetchOptions.headers = {};
     }
   }
-  
+
   // Debug logging for file uploads
   if (isFileUpload) {
     console.log("📤 File upload request:", {
@@ -289,15 +286,17 @@ const apiFetch = async <T = unknown>(
       method: fetchOptions.method,
       hasBody: !!fetchOptions.body,
       bodyType: fetchOptions.body?.constructor?.name,
-      headers: fetchOptions.headers ? Object.fromEntries(new Headers(fetchOptions.headers).entries()) : {},
+      headers: fetchOptions.headers
+        ? Object.fromEntries(new Headers(fetchOptions.headers).entries())
+        : {},
     });
   }
-  
+
   let response: Response;
   try {
     response = await fetch(buildApiUrl(path), fetchOptions);
     clearTimeout(timeoutId);
-    
+
     if (isFileUpload) {
       console.log("📥 File upload response:", {
         status: response.status,
@@ -305,13 +304,23 @@ const apiFetch = async <T = unknown>(
         headers: Object.fromEntries(response.headers.entries()),
       });
     }
-  } catch (fetchError: any) {
+  } catch (fetchError: unknown) {
     clearTimeout(timeoutId);
-    if (fetchError.name === "AbortError") {
-      throw new APIError(408, "Request timeout. Please try again with smaller files.");
+    const errorObj = fetchError as { name?: string };
+    if (errorObj.name === "AbortError") {
+      throw new APIError(
+        408,
+        "Request timeout. Please try again with smaller files."
+      );
     }
-    if (fetchError instanceof TypeError && fetchError.message === "Failed to fetch") {
-      throw new APIError(0, "Network error: Unable to reach server. Please check your connection and ensure the backend server is running.");
+    if (
+      fetchError instanceof TypeError &&
+      fetchError.message === "Failed to fetch"
+    ) {
+      throw new APIError(
+        0,
+        "Network error: Unable to reach server. Please check your connection and ensure the backend server is running."
+      );
     }
     throw fetchError;
   }
@@ -796,14 +805,12 @@ export interface CreateAppointmentRequest {
 // Doctor API Functions
 export const doctorAPI = {
   // List doctors for discovery
-  listDoctors: async (
-    params?: {
-      search?: string;
-      specialty?: string;
-      patient_latitude?: number;
-      patient_longitude?: number;
-    }
-  ): Promise<DoctorListItem[]> => {
+  listDoctors: async (params?: {
+    search?: string;
+    specialty?: string;
+    patient_latitude?: number;
+    patient_longitude?: number;
+  }): Promise<DoctorListItem[]> => {
     const query = new URLSearchParams();
     if (params?.search) {
       query.append("search", params.search);
@@ -867,15 +874,20 @@ export const doctorAPI = {
   },
 
   // Upload profile picture
-  uploadProfilePicture: async (file: File): Promise<{ message: string; photo_url: string }> => {
+  uploadProfilePicture: async (
+    file: File
+  ): Promise<{ message: string; photo_url: string }> => {
     const formData = new FormData();
     formData.append("file", file);
 
-    return apiFetch<{ message: string; photo_url: string }>("/doctors/upload-profile-picture", {
-      method: "POST",
-      body: formData,
-      defaultError: "Failed to upload profile picture",
-    });
+    return apiFetch<{ message: string; photo_url: string }>(
+      "/doctors/upload-profile-picture",
+      {
+        method: "POST",
+        body: formData,
+        defaultError: "Failed to upload profile picture",
+      }
+    );
   },
 
   // Delete profile picture
@@ -886,15 +898,20 @@ export const doctorAPI = {
     });
   },
 
-  uploadCoverPhoto: async (file: File): Promise<{ message: string; cover_photo_url: string }> => {
+  uploadCoverPhoto: async (
+    file: File
+  ): Promise<{ message: string; cover_photo_url: string }> => {
     const formData = new FormData();
     formData.append("file", file);
 
-    return apiFetch<{ message: string; cover_photo_url: string }>("/doctors/upload-cover-photo", {
-      method: "POST",
-      body: formData,
-      defaultError: "Failed to upload cover photo",
-    });
+    return apiFetch<{ message: string; cover_photo_url: string }>(
+      "/doctors/upload-cover-photo",
+      {
+        method: "POST",
+        body: formData,
+        defaultError: "Failed to upload cover photo",
+      }
+    );
   },
 
   deleteCoverPhoto: async (): Promise<{ message: string }> => {
@@ -911,7 +928,9 @@ export const doctorAPI = {
     });
   },
 
-  createSocialLink: async (payload: DoctorSocialLinkCreatePayload): Promise<DoctorSocialLink> => {
+  createSocialLink: async (
+    payload: DoctorSocialLinkCreatePayload
+  ): Promise<DoctorSocialLink> => {
     return apiFetch<DoctorSocialLink>("/doctors/social-links", {
       method: "POST",
       headers: {
@@ -922,7 +941,10 @@ export const doctorAPI = {
     });
   },
 
-  updateSocialLink: async (linkId: number, payload: DoctorSocialLinkUpdatePayload): Promise<DoctorSocialLink> => {
+  updateSocialLink: async (
+    linkId: number,
+    payload: DoctorSocialLinkUpdatePayload
+  ): Promise<DoctorSocialLink> => {
     return apiFetch<DoctorSocialLink>(`/doctors/social-links/${linkId}`, {
       method: "PUT",
       headers: {
@@ -948,7 +970,20 @@ export const doctorAPI = {
     });
   },
 
-  createClinic: async (payload: Partial<Pick<Address, "address_line1" | "address_line2" | "city" | "state" | "postal_code" | "country_code" | "label">>): Promise<Address> => {
+  createClinic: async (
+    payload: Partial<
+      Pick<
+        Address,
+        | "address_line1"
+        | "address_line2"
+        | "city"
+        | "state"
+        | "postal_code"
+        | "country_code"
+        | "label"
+      >
+    >
+  ): Promise<Address> => {
     return apiFetch<Address>("/doctors/clinics", {
       method: "POST",
       headers: {
@@ -959,7 +994,21 @@ export const doctorAPI = {
     });
   },
 
-  updateClinic: async (clinicId: number, payload: Partial<Pick<Address, "address_line1" | "address_line2" | "city" | "state" | "postal_code" | "country_code" | "label">>): Promise<Address> => {
+  updateClinic: async (
+    clinicId: number,
+    payload: Partial<
+      Pick<
+        Address,
+        | "address_line1"
+        | "address_line2"
+        | "city"
+        | "state"
+        | "postal_code"
+        | "country_code"
+        | "label"
+      >
+    >
+  ): Promise<Address> => {
     return apiFetch<Address>(`/doctors/clinics/${clinicId}`, {
       method: "PUT",
       headers: {
@@ -992,14 +1041,20 @@ export const doctorAPI = {
     });
   },
 
-  addSpecialty: async (specialtyId: number, isPrimary: boolean = false): Promise<DoctorSpecialty> => {
+  addSpecialty: async (
+    specialtyId: number,
+    isPrimary: boolean = false
+  ): Promise<DoctorSpecialty> => {
     const query = new URLSearchParams();
     query.append("specialty_id", specialtyId.toString());
     query.append("is_primary", isPrimary.toString());
-    return apiFetch<DoctorSpecialty>(`/doctors/specialties?${query.toString()}`, {
-      method: "POST",
-      defaultError: "Failed to add specialty",
-    });
+    return apiFetch<DoctorSpecialty>(
+      `/doctors/specialties?${query.toString()}`,
+      {
+        method: "POST",
+        defaultError: "Failed to add specialty",
+      }
+    );
   },
 
   removeSpecialty: async (specialtyId: number): Promise<void> => {
@@ -1010,14 +1065,22 @@ export const doctorAPI = {
     });
   },
 
-  setPrimarySpecialty: async (specialtyId: number): Promise<DoctorSpecialty> => {
-    return apiFetch<DoctorSpecialty>(`/doctors/specialties/${specialtyId}/set-primary`, {
-      method: "PUT",
-      defaultError: "Failed to set primary specialty",
-    });
+  setPrimarySpecialty: async (
+    specialtyId: number
+  ): Promise<DoctorSpecialty> => {
+    return apiFetch<DoctorSpecialty>(
+      `/doctors/specialties/${specialtyId}/set-primary`,
+      {
+        method: "PUT",
+        defaultError: "Failed to set primary specialty",
+      }
+    );
   },
 
-  updateSpecialties: async (specialtyIds: number[], primarySpecialtyId?: number): Promise<DoctorSpecialty[]> => {
+  updateSpecialties: async (
+    specialtyIds: number[],
+    primarySpecialtyId?: number
+  ): Promise<DoctorSpecialty[]> => {
     return apiFetch<DoctorSpecialty[]>("/doctors/specialties", {
       method: "PUT",
       headers: {
@@ -1047,7 +1110,9 @@ export const patientAPI = {
     });
   },
 
-  updateProfile: async (payload: PatientProfileUpdatePayload): Promise<PatientProfileData> => {
+  updateProfile: async (
+    payload: PatientProfileUpdatePayload
+  ): Promise<PatientProfileData> => {
     return apiFetch<PatientProfileData>("/patients/profile", {
       method: "PUT",
       headers: {
@@ -1058,7 +1123,9 @@ export const patientAPI = {
     });
   },
 
-  updateUserInfo: async (payload: PatientUserInfoUpdate): Promise<PatientProfileData> => {
+  updateUserInfo: async (
+    payload: PatientUserInfoUpdate
+  ): Promise<PatientProfileData> => {
     return apiFetch<PatientProfileData>("/patients/user-info", {
       method: "PUT",
       headers: {
@@ -1069,14 +1136,19 @@ export const patientAPI = {
     });
   },
 
-  uploadProfilePicture: async (file: File): Promise<{ message: string; photo_url: string }> => {
+  uploadProfilePicture: async (
+    file: File
+  ): Promise<{ message: string; photo_url: string }> => {
     const formData = new FormData();
     formData.append("file", file);
-    return apiFetch<{ message: string; photo_url: string }>("/patients/upload-profile-picture", {
-      method: "POST",
-      body: formData,
-      defaultError: "Failed to upload profile picture",
-    });
+    return apiFetch<{ message: string; photo_url: string }>(
+      "/patients/upload-profile-picture",
+      {
+        method: "POST",
+        body: formData,
+        defaultError: "Failed to upload profile picture",
+      }
+    );
   },
 
   deleteProfilePicture: async (): Promise<{ message: string }> => {
@@ -1086,14 +1158,19 @@ export const patientAPI = {
     });
   },
 
-  uploadCoverPhoto: async (file: File): Promise<{ message: string; cover_photo_url: string }> => {
+  uploadCoverPhoto: async (
+    file: File
+  ): Promise<{ message: string; cover_photo_url: string }> => {
     const formData = new FormData();
     formData.append("file", file);
-    return apiFetch<{ message: string; cover_photo_url: string }>("/patients/upload-cover-photo", {
-      method: "POST",
-      body: formData,
-      defaultError: "Failed to upload cover photo",
-    });
+    return apiFetch<{ message: string; cover_photo_url: string }>(
+      "/patients/upload-cover-photo",
+      {
+        method: "POST",
+        body: formData,
+        defaultError: "Failed to upload cover photo",
+      }
+    );
   },
 
   deleteCoverPhoto: async (): Promise<{ message: string }> => {
@@ -1115,7 +1192,8 @@ export const calendarAPI = {
     if (params?.timeMin) query.append("time_min", params.timeMin);
     if (params?.timeMax) query.append("time_max", params.timeMax);
     if (params?.includeHolidays) query.append("include_holidays", "true");
-    if (params?.maxResults) query.append("max_results", params.maxResults.toString());
+    if (params?.maxResults)
+      query.append("max_results", params.maxResults.toString());
 
     const path = query.toString()
       ? `/calendar/google/events?${query.toString()}`
@@ -1140,11 +1218,15 @@ export const calendarAPI = {
     });
   },
 
-  getUpcomingAppointments: async (limit: number = 5): Promise<Appointment[]> => {
+  getUpcomingAppointments: async (
+    limit: number = 5
+  ): Promise<Appointment[]> => {
     const now = new Date();
     const timeMin = now.toISOString();
     // Get appointments for the next 3 months
-    const timeMax = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    const timeMax = new Date(
+      now.getTime() + 90 * 24 * 60 * 60 * 1000
+    ).toISOString();
 
     const response = await calendarAPI.listEvents({
       timeMin,
@@ -1156,7 +1238,10 @@ export const calendarAPI = {
     // Filter to only scheduled/confirmed appointments and sort by start_time
     return response.appointments
       .filter((apt) => apt.status === "scheduled" || apt.status === "confirmed")
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+      .sort(
+        (a, b) =>
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+      )
       .slice(0, limit);
   },
 };
@@ -1209,14 +1294,16 @@ export interface Notification {
   related_entity_id?: number | null;
   appointment_request_id?: number | null;
   appointment_id?: number | null;
-  notification_metadata?: Record<string, any> | null;
+  notification_metadata?: Record<string, unknown> | null;
   created_at: string;
   read_at?: string | null;
   archived_at?: string | null;
 }
 
 export const appointmentRequestAPI = {
-  create: async (data: AppointmentRequestCreate): Promise<AppointmentRequest> => {
+  create: async (
+    data: AppointmentRequestCreate
+  ): Promise<AppointmentRequest> => {
     return apiFetch<AppointmentRequest>("/appointment-requests", {
       method: "POST",
       headers: {
@@ -1229,18 +1316,24 @@ export const appointmentRequestAPI = {
 
   listForPatient: async (status?: string): Promise<AppointmentRequest[]> => {
     const query = status ? `?status=${status}` : "";
-    return apiFetch<AppointmentRequest[]>(`/appointment-requests/patient${query}`, {
-      method: "GET",
-      defaultError: "Failed to fetch appointment requests",
-    });
+    return apiFetch<AppointmentRequest[]>(
+      `/appointment-requests/patient${query}`,
+      {
+        method: "GET",
+        defaultError: "Failed to fetch appointment requests",
+      }
+    );
   },
 
   listForDoctor: async (status?: string): Promise<AppointmentRequest[]> => {
     const query = status ? `?status=${status}` : "";
-    return apiFetch<AppointmentRequest[]>(`/appointment-requests/doctor${query}`, {
-      method: "GET",
-      defaultError: "Failed to fetch appointment requests",
-    });
+    return apiFetch<AppointmentRequest[]>(
+      `/appointment-requests/doctor${query}`,
+      {
+        method: "GET",
+        defaultError: "Failed to fetch appointment requests",
+      }
+    );
   },
 
   get: async (requestId: number): Promise<AppointmentRequest> => {
@@ -1250,7 +1343,10 @@ export const appointmentRequestAPI = {
     });
   },
 
-  update: async (requestId: number, data: AppointmentRequestUpdate): Promise<AppointmentRequest> => {
+  update: async (
+    requestId: number,
+    data: AppointmentRequestUpdate
+  ): Promise<AppointmentRequest> => {
     return apiFetch<AppointmentRequest>(`/appointment-requests/${requestId}`, {
       method: "PATCH",
       headers: {
@@ -1282,13 +1378,19 @@ export const doctorDashboardAPI = {
 };
 
 export const notificationAPI = {
-  list: async (params?: { status?: string; limit?: number; offset?: number }): Promise<Notification[]> => {
+  list: async (params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Notification[]> => {
     const query = new URLSearchParams();
     if (params?.status) query.append("status", params.status);
     if (params?.limit) query.append("limit", params.limit.toString());
     if (params?.offset) query.append("offset", params.offset.toString());
 
-    const path = query.toString() ? `/notifications?${query.toString()}` : "/notifications";
+    const path = query.toString()
+      ? `/notifications?${query.toString()}`
+      : "/notifications";
     return apiFetch<Notification[]>(path, {
       method: "GET",
       defaultError: "Failed to fetch notifications",
@@ -1415,9 +1517,12 @@ export const patientFileAPI = {
     if (!files || files.length === 0) {
       throw new APIError(400, "No files provided");
     }
-    
+
     if (!category || (category !== "insurance" && category !== "lab_report")) {
-      throw new APIError(400, `Invalid category: ${category}. Must be 'insurance' or 'lab_report'`);
+      throw new APIError(
+        400,
+        `Invalid category: ${category}. Must be 'insurance' or 'lab_report'`
+      );
     }
 
     const formData = new FormData();
@@ -1430,17 +1535,23 @@ export const patientFileAPI = {
       formData.append("files", file);
     });
 
-    console.log(`📎 Preparing to upload ${files.length} files for category: ${category}`, {
-      category,
-      heading,
-      fileCount: files.length,
-      fileNames: files.map(f => f.name),
-      fileSizes: files.map(f => f.size),
-      formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
-        key,
-        value: value instanceof File ? `${value.name} (${value.size} bytes)` : value
-      })),
-    });
+    console.log(
+      `📎 Preparing to upload ${files.length} files for category: ${category}`,
+      {
+        category,
+        heading,
+        fileCount: files.length,
+        fileNames: files.map((f) => f.name),
+        fileSizes: files.map((f) => f.size),
+        formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+          key,
+          value:
+            value instanceof File
+              ? `${value.name} (${value.size} bytes)`
+              : value,
+        })),
+      }
+    );
 
     try {
       const result = await apiFetch<FileBatch>("/patient-files/", {
@@ -1459,12 +1570,17 @@ export const patientFileAPI = {
       if (error instanceof APIError) {
         throw error;
       }
-      throw new APIError(500, error instanceof Error ? error.message : "Failed to upload files");
+      throw new APIError(
+        500,
+        error instanceof Error ? error.message : "Failed to upload files"
+      );
     }
   },
 
   // List all file batches, optionally filtered by category
-  listBatches: async (category?: "insurance" | "lab_report"): Promise<FileBatch[]> => {
+  listBatches: async (
+    category?: "insurance" | "lab_report"
+  ): Promise<FileBatch[]> => {
     const query = category ? `?category=${category}` : "";
     return apiFetch<FileBatch[]>(`/patient-files${query}`, {
       method: "GET",
@@ -1503,7 +1619,10 @@ export const patientFileAPI = {
     });
   },
 
-  shareBatch: async (batchId: number, payload: ShareBatchRequestPayload): Promise<FileBatchShare[]> => {
+  shareBatch: async (
+    batchId: number,
+    payload: ShareBatchRequestPayload
+  ): Promise<FileBatchShare[]> => {
     return apiFetch<FileBatchShare[]>(`/patient-files/${batchId}/share`, {
       method: "POST",
       headers: {
@@ -1607,7 +1726,9 @@ export const insuranceAPI = {
   },
 
   // Create a new insurance policy
-  createPolicy: async (data: InsurancePolicyCreate): Promise<InsurancePolicy> => {
+  createPolicy: async (
+    data: InsurancePolicyCreate
+  ): Promise<InsurancePolicy> => {
     return apiFetch<InsurancePolicy>("/insurance", {
       method: "POST",
       headers: {
@@ -1669,3 +1790,69 @@ export const insuranceAPI = {
   },
 };
 
+// Chat / Assistant
+export type ChatRequestMessage = {
+  role: "user" | "assistant" | "medilink";
+  content: string;
+};
+
+export const streamAssistantReplay = async (
+  messages: ChatRequestMessage[],
+  onChunk: (chunk: string) => void
+) => {
+  const formattedMessages = messages.map((m) => ({
+    role: m.role === "medilink" ? "assistant" : m.role,
+    content: m.content,
+  }));
+
+  const response = await fetch("http://localhost:8000/assistant/chat", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: formattedMessages }),
+  });
+
+  if (!response.body) {
+    throw new Error("Streaming not supported in this environment.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    onChunk(chunk);
+  }
+};
+
+export interface ChatHistoryItem {
+  id: number;
+  role: string;
+  content: string;
+  created_at: string;
+}
+
+export interface LastMessageResponse {
+  message: string | null;
+  created_at: string | null;
+  citations?: { text: string; file_name: string }[];
+}
+
+export const fetchChatHistory = async () => {
+  const data = await apiFetch<ChatHistoryItem[]>("/assistant/history");
+  return { data };
+};
+
+export async function fetchLastMessage() {
+  const data = await apiFetch<LastMessageResponse>("/assistant/last-message");
+  return data;
+}
+
+export async function fetchPrepareKB() {
+  await apiFetch<void>("/assistant-rag/prepare_kb", {
+    method: "POST",
+    expectJson: false,
+  });
+}

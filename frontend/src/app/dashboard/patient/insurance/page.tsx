@@ -75,9 +75,10 @@ export default function InsurancePage() {
       setSummary(data);
       const firstActive = data.policies.find(isPolicyActive);
       setSelectedPolicyId(firstActive?.id ?? null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorObj = err as { detail?: string };
       setError(
-        err.detail ||
+        errorObj.detail ||
           "Network error: Unable to reach server. Please check your connection and ensure the backend server is running."
       );
     } finally {
@@ -506,9 +507,10 @@ function AddPolicyForm({ onSuccess, onCancel }: AddPolicyFormProps) {
 
       resetForm();
       onSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorObj = err as { detail?: string };
       setError(
-        err.detail || "Failed to create insurance policy. Please try again."
+        errorObj.detail || "Failed to create insurance policy. Please try again."
       );
     } finally {
       setSubmitting(false);

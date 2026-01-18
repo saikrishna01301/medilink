@@ -22,8 +22,9 @@ export default function LabReportsPage() {
       setError(null);
       const data = await patientFileAPI.listBatches("lab_report");
       setBatches(data);
-    } catch (err: any) {
-      setError(err.detail || "Failed to load lab reports. Please try again.");
+    } catch (err: unknown) {
+      const errorObj = err as { detail?: string };
+      setError(errorObj.detail || "Failed to load lab reports. Please try again.");
     } finally {
       setIsLoading(false);
     }
