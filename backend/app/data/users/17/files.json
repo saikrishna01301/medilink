@@ -1,0 +1,58 @@
+[
+  {
+    "file_id": 9,
+    "file_name": "blood-test.pdf",
+    "file_type": "pdf",
+    "uploaded_at": "2025-12-05T16:45:21.278022",
+    "structured": {
+      "tests": [
+        {
+          "name": "Triglycerides",
+          "value": 112,
+          "unit": "mg/dL",
+          "reference_range": "<150 (normal), 150-200 (borderline high), >200 (high)",
+          "date": "10/26/2017"
+        },
+        {
+          "name": "Cholesterol",
+          "value": 137,
+          "unit": "mg/dL",
+          "reference_range": "<200 (normal), 200-240 (borderline high), >240 (high)",
+          "date": "10/26/2017"
+        },
+        {
+          "name": "HDL",
+          "value": 53,
+          "unit": "mg/dL",
+          "reference_range": "<40 (low), \u226540 (normal)",
+          "date": "10/26/2017"
+        },
+        {
+          "name": "LDL",
+          "value": 62,
+          "unit": "mg/dL",
+          "reference_range": "<130 (normal), 130-160 (borderline high), >160 (high)",
+          "date": "10/26/2017"
+        }
+      ]
+    },
+    "dates": [
+      "10/26/2017",
+      "11/01/2017",
+      "3/4/1993",
+      "11/1/2017",
+      "10/26/2017",
+      "11/01/2017"
+    ],
+    "num_chunks": 20
+  },
+  {
+    "file_id": 10,
+    "file_name": "prescription.jpeg",
+    "file_type": "jpeg",
+    "uploaded_at": "2025-12-05T16:45:41.037188",
+    "structured": { "tests": [] },
+    "dates": null,
+    "num_chunks": 2
+  }
+]

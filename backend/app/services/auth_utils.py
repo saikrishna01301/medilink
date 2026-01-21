@@ -5,7 +5,7 @@ import secrets
 import asyncio
 import hashlib
 from core import config
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Cookie
 
 SECRET_KEY = config.JWT_SECRET_KEY
 ALGORITHM = config.JWT_ALGORITHM
@@ -63,7 +63,9 @@ async def create_tokens(user_id: int, role: str):
 async def verify_access_token(token: str) -> dict:
     """Verify JWT access token and return payload."""
     try:
-        payload = await asyncio.to_thread(jwt.decode, token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = await asyncio.to_thread(
+            jwt.decode, token, SECRET_KEY, algorithms=[ALGORITHM]
+        )
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(
@@ -75,4 +77,36 @@ async def verify_access_token(token: str) -> dict:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+        )
+
+
+# decode token to get the current user id
+async def decode_token(access_token: str = Cookie(None)):
+    try:
+        payload = jwt.decode(access_token, config.JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id: int = payload.get("sub")  # 'sub' is standard for user ID
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid access_token payload",
+            )
+
+        # You may add token expiry check here if not handled by jwt.decode
+
+        user_id = int(user_id)
+        return user_id
+
+    except JWTError:
+        # This catches invalid signatures, malformed tokens, and sometimes expiration
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+    # You should also handle ExpiredSignatureError specifically if needed
+    except Exception as e:
+        # General catch-all for robustness
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token error: {e}"
         )

@@ -37,18 +37,28 @@ class User(Base):
     middle_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     # Unique constraints required for login/signup validation
-    email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
-    phone: Mapped[str] = mapped_column(String(20), nullable=False)  # No unique constraint - same phone can be used for multiple accounts
+    email: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False
+    )
+    phone: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # No unique constraint - same phone can be used for multiple accounts
     emergency_contact: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # Security field (stores the HASHED password)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # is_patient: True for patient accounts, False for service provider accounts
     is_patient: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # role: NULL for patient accounts, 'doctor'/'pharmacist'/'insurer' for service providers
-    role: Mapped[Optional[str]] = mapped_column(SQLEnum(UserRoleEnum, name="user_role"), nullable=True)
+    role: Mapped[Optional[str]] = mapped_column(
+        SQLEnum(UserRoleEnum, name="user_role"), nullable=True
+    )
     accepted_terms: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, server_default=func.now()
+    )
 
     # Link to dbsessions
     sessions: Mapped[List["DBSession"]] = relationship(back_populates="user")
@@ -70,4 +80,8 @@ class User(Base):
     # Insurance policies for patients
     insurance_policies: Mapped[List["PatientInsurancePolicy"]] = relationship(
         back_populates="patient", cascade="all, delete-orphan", passive_deletes=True
+    )
+    # Assistant chat history
+    chat_history: Mapped[List["ChatHistory"]] = relationship(
+        "ChatHistory", back_populates="user", cascade="all, delete-orphan"
     )

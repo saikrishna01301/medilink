@@ -103,15 +103,16 @@ export default function FileUploadSection({ category, onUploadSuccess }: FileUpl
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Upload error:", err);
       // Handle APIError - it has both detail and message properties
+      const errorObj = err as { detail?: string; message?: string };
       if (err && typeof err === 'object') {
         // Check if it's an APIError (has detail property)
-        if ('detail' in err && typeof err.detail === 'string') {
-          setError(err.detail);
-        } else if (err.message && typeof err.message === 'string') {
-          setError(err.message);
+        if ('detail' in errorObj && typeof errorObj.detail === 'string') {
+          setError(errorObj.detail);
+        } else if (errorObj.message && typeof errorObj.message === 'string') {
+          setError(errorObj.message);
         } else {
           setError("Failed to upload files. Please try again.");
         }

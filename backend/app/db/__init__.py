@@ -1,3 +1,9 @@
+import sys
+
+# Alias so imports via "db" and "app.db" share the same module instance.
+sys.modules.setdefault("app.db", sys.modules[__name__])
+sys.modules.setdefault("db", sys.modules[__name__])
+
 from .base import Base
 from .database import engine, sessionLocal, init_db, get_session
 from .models import (
@@ -18,8 +24,9 @@ from .models import (
     PatientInsurancePolicyMember,
     InsurancePolicyDocument,
     PatientFile,
+    ChatHistory,
 )
-from .crud import auth_crud
+from .crud import auth_crud, assistant_crud
 
 __all__ = [
     "Base",
@@ -47,4 +54,6 @@ __all__ = [
     "PatientInsurancePolicyMember",
     "InsurancePolicyDocument",
     "PatientFile",
+    "ChatHistory",
+    "assistant_crud",
 ]

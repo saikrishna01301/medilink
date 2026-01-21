@@ -1,5 +1,9 @@
 import os
+import sys
 from typing import List
+
+# Ensure project root is on PYTHONPATH (helps when running uvicorn from backend/app)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +20,8 @@ from routers import (
     patient_file_routes,
     patient_routes,
     insurance_routes,
+    chat_assistant_routes,
+    assistant_rag_routes,
 )
 from services.redis_service import get_redis_client, close_redis_client
 
@@ -26,12 +32,15 @@ DEFAULT_CORS_ORIGINS = [
     "http://localhost",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    # Cloudflare tunnel / production domain (HTTPS)
-    "https://medilink.virtual-viking.dev",
+    "http://localhost:8000",
+    # Production domains will be added via CORS_ALLOW_ORIGINS env var
 ]
 
 
-def _parse_env_origins(raw_value: str | None) -> List[str]:
+from typing import Optional
+
+
+def _parse_env_origins(raw_value: Optional[str]) -> List[str]:
     """Parse CORS origins from a comma-separated env var."""
     if not raw_value:
         return []
@@ -80,7 +89,9 @@ async def on_startup():
     try:
         await get_redis_client()
     except Exception as e:
-        print(f"Warning: Redis connection failed: {e}. Chat features may not work properly.")
+        print(
+            f"Warning: Redis connection failed: {e}. Chat features may not work properly."
+        )
 
 
 # Close Cloud SQL connector on shutdown
@@ -94,10 +105,26 @@ async def on_shutdown():
 app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
 app.include_router(doctor_routes.router, prefix="/doctors", tags=["doctors"])
 app.include_router(patient_routes.router, prefix="/patients", tags=["patients"])
-app.include_router(google_calendar_routes.router, prefix="/calendar/google", tags=["google-calendar"])
-app.include_router(appointment_request_routes.router, prefix="/appointment-requests", tags=["appointment-requests"])
-app.include_router(notification_routes.router, prefix="/notifications", tags=["notifications"])
-app.include_router(doctor_dashboard_routes.router, prefix="/doctors", tags=["doctor-dashboard"])
+app.include_router(
+    google_calendar_routes.router, prefix="/calendar/google", tags=["google-calendar"]
+)
+app.include_router(
+    appointment_request_routes.router,
+    prefix="/appointment-requests",
+    tags=["appointment-requests"],
+)
+app.include_router(
+    notification_routes.router, prefix="/notifications", tags=["notifications"]
+)
+app.include_router(
+    doctor_dashboard_routes.router, prefix="/doctors", tags=["doctor-dashboard"]
+)
 app.include_router(chat_routes.router, prefix="/chat", tags=["chat"])
-app.include_router(patient_file_routes.router, prefix="/patient-files", tags=["patient-files"])
+app.include_router(
+    patient_file_routes.router, prefix="/patient-files", tags=["patient-files"]
+)
 app.include_router(insurance_routes.router, prefix="/insurance", tags=["insurance"])
+app.include_router(chat_assistant_routes.router, prefix="/assistant", tags=["assistant"])
+app.include_router(
+    assistant_rag_routes.router, prefix="/assistant-rag", tags=["assistant-rag"]
+)

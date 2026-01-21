@@ -250,7 +250,7 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
               <p className="text-sm font-medium text-blue-900 mb-1">Doctor Suggested Alternative Time:</p>
               <p className="text-sm text-blue-700">
                 <span className="font-medium">
-                  {formatDate(request.suggested_date)} at {formatTime(request.suggested_time_slot_start)}
+                  {formatDate(request.suggested_date ?? "")} at {formatTime(request.suggested_time_slot_start ?? "")}
                 </span>
               </p>
             </div>
@@ -289,7 +289,7 @@ export default function PatientAppointmentRequestCard({ request, onUpdate }: Pat
           {request.status === "pending" && request.appointment_id && (
             <div>
               <p className="text-sm text-yellow-700 font-medium">
-                Reschedule request sent. Awaiting doctor's response.
+                Reschedule request sent. Awaiting doctor&apos;s response.
               </p>
             </div>
           )}

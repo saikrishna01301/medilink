@@ -17,12 +17,17 @@ def _read_file_if_exists(candidate: str) -> Optional[str]:
     candidate = candidate.strip().strip('"').strip("'")
     if not candidate:
         return None
+    # If candidate looks like inline JSON, skip path checks
+    if candidate.startswith("{") and candidate.rstrip().endswith("}"):
+        return None
     path = Path(candidate)
     if path.exists() and path.is_file():
         try:
             return path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise ValueError(f"Failed to read service account file at {path}: {exc}") from exc
+            raise ValueError(
+                f"Failed to read service account file at {path}: {exc}"
+            ) from exc
     return None
 
 
@@ -151,18 +156,35 @@ def ensure_application_default_credentials(
     if existing_path and Path(existing_path).exists():
         return existing_path
 
-    # Allow direct file path candidates.
+    # Allow direct file path candidates. Skip candidates that look like
+    # inline JSON (they'll be handled below) to avoid treating a JSON string
+    # as a filesystem path which can raise OSError for long strings.
     for candidate in json_candidates:
         if not candidate:
             continue
-        path = Path(candidate.strip('"').strip("'"))
+        stripped = candidate.strip().strip('"').strip("'")
+        # Quick heuristic: if it looks like JSON, skip path checks here
+        if stripped.startswith("{") and stripped.rstrip().endswith("}"):
+            continue
+        # Otherwise treat as a potential path
+        path = Path(stripped)
         if path.exists() and path.is_file():
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(path)
             return str(path)
 
+    # Next, attempt to resolve inline JSON from provided candidates or the
+    # GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable.
     fallback_env = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
     info = load_service_account_info(*(json_candidates + (fallback_env,)))
     if not info:
+        # If inline JSON wasn't provided, attempt to locate a JSON key file
+        # in the project root or common locations. We try a few sensible
+        # places so developers can drop a key at the repository root and
+        # have it picked up automatically.
+        project_key = _find_key_in_project_root()
+        if project_key:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(project_key)
+            return str(project_key)
         return None
 
     temp_path = _write_temp_credentials(info, cache_key)
@@ -170,7 +192,88 @@ def ensure_application_default_credentials(
     return temp_path
 
 
+def _search_upwards_for_repo_root(start: Optional[Path] = None) -> Optional[Path]:
+    """Walk upwards from start (or cwd) and return the first directory that
+    appears to be the repository/project root. Heuristics: presence of
+    .git, pyproject.toml, requirements.txt, package.json, or folders like
+    'backend'/'frontend'."""
+    if start is None:
+        start = Path.cwd()
+
+    candidates = [
+        ".git",
+        "pyproject.toml",
+        "requirements.txt",
+        "package.json",
+        "backend",
+        "frontend",
+    ]
+    current = start.resolve()
+    for parent in [current] + list(current.parents):
+        for marker in candidates:
+            if (parent / marker).exists():
+                return parent
+    return None
+
+
+def _find_key_in_project_root() -> Optional[Path]:
+    """Search for common GCP key filenames in the project/root directories.
+
+    Returns the Path to the first found key file or None.
+    """
+    filenames = [
+        "gcp-key.json",
+        "gcp_credentials.json",
+        "service-account.json",
+        "service_account.json",
+        "google-credentials.json",
+        "google-service-account.json",
+        "credentials.json",
+        "key.json",
+        "gcp-key-credentials.json",
+    ]
+
+    # Check current working directory first, then attempt to find project root
+    search_dirs = [Path.cwd()]
+    repo_root = _search_upwards_for_repo_root()
+    if repo_root and repo_root not in search_dirs:
+        search_dirs.append(repo_root)
+
+    # Also check the directory where this module lives (app/core -> app)
+    module_root = Path(__file__).resolve().parents[2]
+    if module_root not in search_dirs:
+        search_dirs.append(module_root)
+
+    for d in search_dirs:
+        for name in filenames:
+            candidate = d / name
+            if candidate.exists() and candidate.is_file():
+                try:
+                    # Validate it's JSON
+                    _ = json.loads(candidate.read_text(encoding="utf-8"))
+                    return candidate
+                except Exception:
+                    # skip files that are not valid JSON
+                    continue
+
+    # As a last resort, look for any *.json file in the repo root that looks like a key
+    if repo_root:
+        for candidate in repo_root.glob("*.json"):
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                # basic heuristic: presence of 'private_key' and 'client_email'
+                if (
+                    isinstance(data, dict)
+                    and "private_key" in data
+                    and "client_email" in data
+                ):
+                    return candidate
+            except Exception:
+                continue
+
+    return None
+
+
 def as_inline_json(value: Dict[str, Any]) -> str:
     """Utility to serialize service-account info back to a JSON string."""
     return json.dumps(value)
-

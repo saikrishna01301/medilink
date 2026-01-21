@@ -130,6 +130,19 @@ async def active_sessions(hashed_incoming_token, session: AsyncSession):
     return sessions.all()
 
 
+async def get_all_active_sessions(session: AsyncSession):
+    """Get all active (non-expired) sessions for refresh token verification.
+
+    bcrypt produces different hashes each time, so we need to fetch all sessions
+    and verify the refresh token against each stored hash.
+    """
+    naive_utc_now = datetime.now(timezone.utc).replace(tzinfo=None)
+    result = await session.execute(
+        select(DBSession).where(DBSession.expires_at > naive_utc_now)
+    )
+    return result.scalars().all()
+
+
 async def delete_session(db_session: DBSession, session: AsyncSession):
     await session.delete(db_session)
     await session.commit()

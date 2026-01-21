@@ -47,6 +47,7 @@ from .patient_schema import (
     PatientUserInfoUpdate,
     PatientUserSummary,
 )
+from .assistant_schema import ChatRequest
 
 __all__ = [
     UserLogin,
@@ -92,4 +93,5 @@ __all__ = [
     PatientDiagnosisRead,
     PatientUserInfoUpdate,
     PatientUserSummary,
+    ChatRequest,
 ]

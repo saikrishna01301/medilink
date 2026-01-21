@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 async def get_authenticated_user(
-    access_token: str | None = Cookie(default=None),
+    access_token: Optional[str] = Cookie(default=None),
     session: AsyncSession = Depends(get_session),
 ):
     if not access_token:
@@ -73,7 +73,9 @@ async def _serialize_appointment(model, session: AsyncSession) -> dict:
             select(User).where(User.id == model.doctor_user_id)
         )
         if doctor_user:
-            doctor_profile = await doctor_crud.get_doctor_profile(model.doctor_user_id, session)
+            doctor_profile = await doctor_crud.get_doctor_profile(
+                model.doctor_user_id, session
+            )
             specialty = doctor_profile.specialty if doctor_profile else None
             doctor_name = f"{doctor_user.first_name} {doctor_user.last_name}".strip()
             doctor_info = {
@@ -117,8 +119,8 @@ def _normalize_event(event: dict) -> dict:
 async def list_calendar_events(
     current_user=Depends(get_authenticated_user),
     session: AsyncSession = Depends(get_session),
-    time_min: str | None = Query(None),
-    time_max: str | None = Query(None),
+    time_min: Optional[str] = Query(None),
+    time_max: Optional[str] = Query(None),
     include_holidays: bool = Query(False),
     max_results: int = Query(50, ge=1, le=2500),
 ):
@@ -133,7 +135,9 @@ async def list_calendar_events(
     )
 
     response: dict = {
-        "appointments": [await _serialize_appointment(item, session) for item in appointments],
+        "appointments": [
+            await _serialize_appointment(item, session) for item in appointments
+        ],
         "holidays": [],
         "service_events": [],
     }
@@ -160,7 +164,9 @@ async def list_calendar_events(
             time_max=time_max,
             max_results=max_results,
         )
-        response["service_events"] = [_normalize_event(event) for event in service_events]
+        response["service_events"] = [
+            _normalize_event(event) for event in service_events
+        ]
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -195,7 +201,11 @@ async def create_calendar_event(
     patient_user_id = payload.patient_user_id
     doctor_user_id = payload.doctor_user_id
 
-    role_value = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role) if current_user.role else None
+    role_value = (
+        current_user.role.value
+        if hasattr(current_user.role, "value")
+        else str(current_user.role) if current_user.role else None
+    )
     if role_value == "doctor":
         doctor_user_id = doctor_user_id or current_user.id
         patient_user_id = patient_user_id or current_user.id
@@ -219,4 +229,3 @@ async def create_calendar_event(
     )
 
     return await _serialize_appointment(created, session)
-
