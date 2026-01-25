@@ -1805,7 +1805,8 @@ export const streamAssistantReplay = async (
     content: m.content,
   }));
 
-  const response = await fetch("http://localhost:8000/assistant/chat", {
+  const apiBase = ABSOLUTE_API_BASE || "";
+  const response = await fetch(`${apiBase}/assistant/chat`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
