@@ -12,6 +12,13 @@ PROJECT_ROOT = BACKEND_DIR.parent
 
 
 class config(BaseSettings):
+    # Application Environment
+    APP_ENV: str = os.getenv("APP_ENV", "development")
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV.lower() == "production"
+
     # Email Configuration
     SENDER_EMAIL: str = os.getenv("SENDER_EMAIL", "")
     SENDER_PASSWORD: str = os.getenv("SENDER_PASSWORD", "")

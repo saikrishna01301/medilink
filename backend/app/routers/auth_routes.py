@@ -312,13 +312,19 @@ async def user_login(
         validated_user.id, hashed_refresh_token, refresh_exp, session
     )
 
+    # Cookie settings based on environment
+    # Production: secure=True, samesite="none" for cross-domain (Vercel -> Railway)
+    # Development: secure=False, samesite="Lax" for localhost
+    cookie_secure = config.is_production
+    cookie_samesite = "none" if config.is_production else "Lax"
+
     # Access Token (short-lived)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",  # Set path to root so it works with rewrites
         max_age=ACCESS_TOKEN_MAX_AGE,
     )
@@ -328,8 +334,8 @@ async def user_login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",  # Set path to root so it works with rewrites
         expires=refresh_exp,  # Uses the calculated datetime for long expiry
     )
@@ -394,13 +400,17 @@ async def create_patient_account(
         validated_user.id, hashed_refresh_token, refresh_exp, session
     )
 
+    # Cookie settings based on environment
+    cookie_secure = config.is_production
+    cookie_samesite = "none" if config.is_production else "Lax"
+
     # Set cookies
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",
         max_age=ACCESS_TOKEN_MAX_AGE,
     )
@@ -408,8 +418,8 @@ async def create_patient_account(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",
         expires=refresh_exp,
     )
@@ -471,13 +481,17 @@ async def verify_account(
         current_user_data.id, hashed_refresh_token, refresh_exp, session
     )
 
+    # Cookie settings based on environment
+    cookie_secure = config.is_production
+    cookie_samesite = "none" if config.is_production else "Lax"
+
     # Access Token (short-lived)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",  # Set path to root so it works with rewrites
         max_age=ACCESS_TOKEN_MAX_AGE,
     )
@@ -487,8 +501,8 @@ async def verify_account(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         path="/",  # Set path to root so it works with rewrites
         expires=refresh_exp,  # Uses the calculated datetime for long expiry
     )
@@ -560,13 +574,17 @@ async def refresh_access_token(
     role_for_token = "patient" if user.is_patient else (user.role or "patient")
     access_token, _, _ = await create_tokens(user.id, role_for_token)
 
+    # Cookie settings based on environment
+    cookie_secure = config.is_production
+    cookie_samesite = "none" if config.is_production else "Lax"
+
     # 7. Set the NEW Access Token in the response cookie (OVERWRITING the expired one)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="Lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         max_age=ACCESS_TOKEN_MAX_AGE,
     )
 
