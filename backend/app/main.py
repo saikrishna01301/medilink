@@ -26,7 +26,7 @@ from routers import (
 from services.redis_service import get_redis_client, close_redis_client
 
 
-app = FastAPI()
+app = FastAPI(title="Healthcare Appointment System API", version="1.0.0")
 
 DEFAULT_CORS_ORIGINS = [
     "http://localhost",
@@ -124,7 +124,9 @@ app.include_router(
     patient_file_routes.router, prefix="/patient-files", tags=["patient-files"]
 )
 app.include_router(insurance_routes.router, prefix="/insurance", tags=["insurance"])
-app.include_router(chat_assistant_routes.router, prefix="/assistant", tags=["assistant"])
+app.include_router(
+    chat_assistant_routes.router, prefix="/assistant", tags=["assistant"]
+)
 app.include_router(
     assistant_rag_routes.router, prefix="/assistant-rag", tags=["assistant-rag"]
 )
